@@ -7,7 +7,7 @@ import (
 	"github.com/dst3v3n/api-anime/extract"
 )
 
-func TestVideoExtractor_ExtractVideoLinks(t *testing.T) {
+func TestVideoExtractor_ExtractVideoLinksTape(t *testing.T) {
 	testCases := []struct {
 		name        string
 		urlEmbed    string
@@ -32,7 +32,7 @@ func TestVideoExtractor_ExtractVideoLinks(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			link, err := extract.ExtractUrl(ctx, tc.urlEmbed)
+			link, err := extract.ExtractURL("streamtape", ctx, tc.urlEmbed)
 			if (err != nil) != tc.wantError {
 				t.Errorf("Test %s fallido: %s. Error esperado: %v, Error obtenido: %v", tc.name, tc.description, tc.wantError, err)
 			}

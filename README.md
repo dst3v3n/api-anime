@@ -1,42 +1,54 @@
 # 🎌 Anime API
 
-Librería Go de alto rendimiento para obtener información de animes desde AnimeFlv con caché distribuido opcional.
+**Librería Go de alto rendimiento** para obtener información de animes desde AnimeFlv con caché distribuido opcional
+---
 
 ## 📋 Descripción
 
-**Anime API** te permite buscar animes, obtener información detallada (sinopsis, géneros, estado, episodios, animes relacionados) y conseguir enlaces de episodios desde servicios externos (Mega, Zippyshare, StreamSB, etc.) disponibles en AnimeFlv.
+**Anime API** es una librería Go que te permite:
 
-Incluye **caché distribuido opcional** con Valkey/Redis para optimizar consultas recurrentes, reduciendo tiempos de respuesta de 2-3 segundos a <1ms.
+- 🔍 Buscar animes por nombre con paginación
+- 📖 Obtener información detallada (sinopsis, géneros, estado, episodios, relacionados)
+- 🎬 Conseguir enlaces de episodios desde servicios externos (Mega, StreamTape, StreamWish, etc.)
+- 🎥 Extraer URLs directas de reproducción en tiempo real
+- 📺 Monitorear animes y episodios recientes
 
-### 🌟 Características
+**Incluye caché distribuido opcional** con Valkey/Redis que reduce tiempos de respuesta de **2-3 segundos a <1ms**.
 
-- 🔍 **Búsqueda de animes** por nombre con paginación
-- 📖 **Información completa** - Sinopsis, géneros, estado, episodios, animes relacionados
-- 🎬 **Enlaces de episodios** - URLs de servicios externos (Mega, Zippyshare, StreamSB, etc.)
-- 🎥 **Extracción de URLs** - Obtén URLs directas de reproducción (⚡ NEW - StreamTape soportado, más servicios próximamente)
-- 📺 **Animes recientes** - Últimos agregados al sitio
-- 🆕 **Episodios recientes** - Últimos episodios publicados
-- 💾 **Caché opcional** - Configurable, desactivable, TTL personalizable
-- 🚀 **Alto rendimiento** - < 1ms en consultas cacheadas
+---
+
+## 🌟 Características Principales
+
+| Característica | Descripción |
+|---|---|
+| 🔍 **Búsqueda inteligente** | Por nombre con paginación automática |
+| 📖 **Info completa** | Sinopsis, géneros, estado, total de episodios |
+| 🎬 **Enlaces directos** | URLs de múltiples servicios de streaming |
+| 🎥 **Extracción URL** | Automatización de navegador para URLs directas ⚡ |
+| 📺 **Feed de actualizaciones** | Animes y episodios más recientes |
+| 💾 **Caché configurable** | Valkey/Redis, TTL personalizable |
+| 🚀 **Ultra rápido** | <1ms en consultas cacheadas (~3000x más rápido) |
 
 ---
 
 ## 📦 Instalación
 
+### Requisitos Previos
+
+- **Go 1.25.3+**
+- **Valkey/Redis** (opcional, solo si usas caché)
+
+### Instalar la librería
+
 ```bash
 go get github.com/dst3v3n/api-anime
 ```
-
-### Prerrequisitos
-
-- **Go 1.25.3+**
-- **Valkey/Redis** (opcional, solo si quieres usar caché)
 
 ---
 
 ## 🚀 Inicio Rápido
 
-### Sin Caché (Más Simple)
+### 1️⃣ Sin Caché (Más Simple)
 
 ```go
 package main
@@ -48,7 +60,6 @@ import (
 )
 
 func main() {
-    // Usa configuración por defecto (caché desactivado)
     service := apianime.NewAnimeFlv()
     ctx := context.Background()
     
@@ -57,57 +68,66 @@ func main() {
         panic(err)
     }
     
-    fmt.Printf("Encontrados %d animes\n", len(resultados.Animes))
+    fmt.Printf("✅ Encontrados %d animes\n", len(resultados.Animes))
+    
+    for _, anime := range resultados.Animes {
+        fmt.Printf("  📺 %s - ⭐ %.1f\n", anime.Title, anime.Punctuation)
+    }
 }
 ```
 
-### Con Caché (Recomendado)
+### 2️⃣ Con Caché (Recomendado para Producción)
 
-**1. Iniciar Valkey/Redis:**
+**Paso 1:** Inicia Valkey/Redis
 
 ```bash
 docker run -d -p 6379:6379 valkey/valkey:latest
 ```
 
-**2. Configurar y usar:**
+**Paso 2:** Configura tu servicio
 
 ```go
 package main
 
 import (
     "context"
+    "fmt"
     "github.com/dst3v3n/api-anime"
     "github.com/dst3v3n/api-anime/config"
 )
 
 func main() {
-    // Activar caché programáticamente
+    // Configurar caché
     cfg := config.NewConfigWithDefaults().
-        WithEnableCache(true).           // Activar
-        WithCacheHost("localhost").      // Host
-        WithCachePort(6379).             // Puerto
-        WithCacheTTL(60)                 // 60 minutos (1 hora)
+        WithEnableCache(true).              // Activar caché
+        WithCacheHost("localhost").         // Host
+        WithCachePort(6379).                // Puerto
+        WithCacheTTL(60)                    // TTL en minutos
     
     config.InitConfig(cfg)
     
     service := apianime.NewAnimeFlv()
     ctx := context.Background()
     
-    // Primera búsqueda: ~2s (scraping)
+    // Primera búsqueda: ~2s (scraping del sitio)
+    fmt.Println("⏳ Primera búsqueda...")
     resultados, _ := service.SearchAnime(ctx, "Naruto", 1)
+    fmt.Printf("✅ Encontrados %d animes\n", len(resultados.Animes))
     
     // Segunda búsqueda: <1ms (desde caché!)
+    fmt.Println("⚡ Segunda búsqueda (desde caché)...")
     resultados, _ = service.SearchAnime(ctx, "Naruto", 1)
+    fmt.Printf("✅ Encontrados %d animes (casi instantáneo)\n", len(resultados.Animes))
 }
 ```
 
 ---
 
-## 📚 Referencia API
+## 📚 Referencia Completa de la API
 
-### SearchAnime
+### 🔎 SearchAnime
 
-Busca animes por nombre con paginación.
+Busca animes por nombre con soporte para paginación.
 
 ```go
 SearchAnime(ctx context.Context, anime string, page uint) (AnimeResponse, error)
@@ -122,15 +142,16 @@ if err != nil {
 }
 
 for _, anime := range resultados.Animes {
-    fmt.Printf("%s - ⭐%.1f\n", anime.Title, anime.Punctuation)
+    fmt.Printf("%s (⭐ %.1f/10) - %s\n", 
+        anime.Title, 
+        anime.Punctuation,
+        anime.Sinopsis[:50] + "...")
 }
 ```
 
-**Retorna:**
+**Respuesta:**
 
 ```go
-import "github.com/dst3v3n/api-anime/types"
-
 type AnimeResponse struct {
     Animes     []types.AnimeStruct
     TotalPages uint
@@ -141,18 +162,16 @@ type AnimeStruct struct {
     Title       string        // "Naruto Shippuden"
     Sinopsis    string
     Type        CategoryAnime // Anime, OVA, Pelicula, Especial
-    Punctuation float64       // 0-10
-    Image       string        // URL
+    Punctuation float64       // Calificación 0-10
+    Image       string        // URL de la portada
 }
 ```
 
-Disponible en: `types.AnimeResponse` y `types.AnimeStruct`
-
 ---
 
-### AnimeInfo
+### 📖 AnimeInfo
 
-Información completa de un anime.
+Obtén toda la información detallada de un anime.
 
 ```go
 AnimeInfo(ctx context.Context, idAnime string) (AnimeInfoResponse, error)
@@ -161,41 +180,51 @@ AnimeInfo(ctx context.Context, idAnime string) (AnimeInfoResponse, error)
 **Ejemplo:**
 
 ```go
-info, _ := service.AnimeInfo(ctx, "one-piece-tv")
-
-fmt.Println("Estado:", info.Status)          // "En Emision" / "Finalizado"
-fmt.Println("Géneros:", info.Genres)
-fmt.Println("Próximo ep:", info.NextEpisode)
-fmt.Println("Total eps:", len(info.Episodes))
-
-// Animes relacionados
-for _, rel := range info.AnimeRelated {
-    fmt.Printf("- %s (%s)\n", rel.Title, rel.Category)
+info, err := service.AnimeInfo(ctx, "one-piece-tv")
+if err != nil {
+    log.Fatal(err)
 }
+
+fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+fmt.Printf("📺 %s\n", info.Title)
+fmt.Printf("🎯 Tipo: %s\n", info.Type)
+fmt.Printf("📊 Estado: %s\n", info.Status)          // "En Emisión" / "Finalizado"
+fmt.Printf("🎭 Géneros: %v\n", info.Genres)
+fmt.Printf("📍 Total episodios: %d\n", len(info.Episodes))
+fmt.Printf("⏰ Próximo episodio: %s\n", info.NextEpisode)
+
+fmt.Println("\n🔗 Animes Relacionados:")
+for _, rel := range info.AnimeRelated {
+    fmt.Printf("  └─ %s (%s)\n", rel.Title, rel.Category)
+}
+fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 ```
 
-**Retorna:**
+**Respuesta:**
 
 ```go
-import "github.com/dst3v3n/api-anime/types"
-
 type AnimeInfoResponse struct {
-    AnimeStruct                   // Info básica
-    AnimeRelated []AnimeRelated   // Secuelas, precuelas
+    AnimeStruct                   // Información básica
+    AnimeRelated []AnimeRelated   // Precuelas, secuelas, spin-offs
     Genres       []string
-    Status       StatusAnime      // "En Emision" / "Finalizado"
+    Status       StatusAnime      // "En Emisión" / "Finalizado"
     NextEpisode  string
     Episodes     []int            // [1, 2, 3, ..., 1150]
 }
-```
 
-Disponible en: `types.AnimeInfoResponse` y `types.AnimeRelated`
+type AnimeRelated struct {
+    ID       string
+    Title    string
+    Category string // "Precuela", "Secuela", "Spin-off", etc.
+    Image    string
+}
+```
 
 ---
 
-### Links
+### 🔗 Links
 
-Obtiene los enlaces de descarga/streaming de un episodio desde diferentes servicios externos (Mega, Zippyshare, StreamSB, etc.).
+Obtén todos los enlaces de descarga/streaming disponibles para un episodio.
 
 ```go
 Links(ctx context.Context, idAnime string, episode uint) (LinkResponse, error)
@@ -204,98 +233,95 @@ Links(ctx context.Context, idAnime string, episode uint) (LinkResponse, error)
 **Ejemplo:**
 
 ```go
-links, _ := service.Links(ctx, "one-piece-tv", 1150)
+links, err := service.Links(ctx, "one-piece-tv", 1150)
+if err != nil {
+    log.Fatal(err)
+}
 
-// Mostrar todos los servidores disponibles
-for _, link := range links.Link {
-    fmt.Printf("Servidor: %s\n", link.Server)  // "Mega", "Zippyshare", etc.
-    fmt.Printf("URL: %s\n", link.URL)          // Enlace directo al servicio
-    fmt.Println("---")
+fmt.Printf("📺 %s - Episodio %d\n", links.Title, links.Episode)
+fmt.Printf("🌐 Servidores disponibles: %d\n\n", len(links.Link))
+
+for i, link := range links.Link {
+    fmt.Printf("%d. %s\n", i+1, link.Server)
+    fmt.Printf("   🔗 %s\n", link.URL)
+    if link.Code != "" {
+        fmt.Printf("   📝 Código: %s\n", link.Code)
+    }
+    fmt.Println()
 }
 ```
 
-**Retorna:**
+**Respuesta:**
 
 ```go
-import "github.com/dst3v3n/api-anime/types"
-
 type LinkResponse struct {
     ID      string
     Title   string
     Episode uint
-    Link    []types.LinkSource  // Enlaces de servicios externos
+    Link    []types.LinkSource
 }
 
 type LinkSource struct {
-    Server string // Nombre del servicio: "Mega", "Zippyshare", "StreamSB", etc.
-    URL    string // URL directa al servicio externo
-    Code   string // Código embed (si aplica)
+    Server string // "Mega", "StreamTape", "StreamWish", etc.
+    URL    string // URL directa/embebida
+    Code   string // Código de inserción (si aplica)
 }
 ```
 
-Disponible en: `types.LinkResponse` y `types.LinkSource`
-
 ---
 
-### ExtractUrl ⚡ NUEVO
+### ⚡ ExtractURL
 
-Extrae la URL directa de reproducción desde una página embebida de video. **Actualmente disponible solo para StreamTape**, con soporte para más servicios próximamente.
+Extrae URLs directas de reproducción desde páginas embebidas de video.
 
 ```go
-ExtractUrl(ctx context.Context, url string) (string, error)
+ExtractURL(service string, ctx context.Context, url string) (string, error)
 ```
 
 **Ejemplo:**
 
 ```go
-import (
-    "github.com/dst3v3n/api-anime/extract"
-)
+import "github.com/dst3v3n/api-anime/extract"
 
-// URL del reproductor embebido de StreamTape
-embedURL := "https://streamtape.com/e/PWw1erZpe1FG87/"
+// URL embebida de un reproductor
+embedURL := "https://streamwish.to/e/ss619zjv2ufo"
 
 // Extraer URL directa
-videoURL, err := extract.ExtractUrl(ctx, embedURL)
+videoURL, err := extract.ExtractURL("streamwish", ctx, embedURL)
 if err != nil {
     log.Fatal(err)
 }
 
-fmt.Println("URL del video:", videoURL)
-// Output: https://streamtape.com/get_video?id=...
+fmt.Println("✅ URL directa del video:")
+fmt.Println(videoURL)
+// Output: https://hgplaycdn.com/stream/.../master.m3u8
 ```
-
-**Características:**
-
-- 🎬 Extrae URLs directas desde reproductores embebidos
-- 🤖 Usa automatización de navegador (Chromedp/Chrome headless)
-- ⏱️ Tiempo de extracción: ~3-5 segundos
-- 🔄 Requiere Chrome/Chromium instalado en el sistema
 
 **Servicios Soportados:**
 
-| Servicio | Estado | Notas |
-|----------|--------|-------|
-| StreamTape | ✅ Disponible | Actualmente soportado |
-| Mega | ⏳ Próximamente | En desarrollo |
-| Zippyshare | ⏳ Próximamente | En desarrollo |
-| Google Drive | ⏳ Próximamente | En desarrollo |
+| Servicio | Estado | Características |
+|----------|--------|-----------------|
+| **StreamTape** | ✅ Disponible | Extracción nativa directa |
+| **StreamWish** | ✅ Disponible | Captura optimizada de master.m3u8 |
+| Mega | ⏳ Próxima versión | En desarrollo |
+| Google Drive | ⏳ Próxima versión | En desarrollo |
 
-**Requisitos:**
+**Requisitos del Sistema:**
+
+Chrome/Chromium debe estar instalado:
 
 ```bash
-# Chrome o Chromium debe estar instalado en el sistema
-# En Linux
+# Linux (Ubuntu/Debian)
 sudo apt-get install chromium-browser
 
-# En macOS
+# macOS
 brew install chromium
 
-# En Windows
+# Windows
 # Descargar desde: https://www.chromium.org/
 ```
 
-**Uso Completo - Obtener enlaces y extraer URLs:**
+**Ejemplo Completo - Obtener y Extraer URLs:**
 
 ```go
 package main
@@ -303,6 +329,7 @@ package main
 import (
     "context"
     "fmt"
+    "log"
     "github.com/dst3v3n/api-anime"
     "github.com/dst3v3n/api-anime/extract"
 )
@@ -311,22 +338,31 @@ func main() {
     service := apianime.NewAnimeFlv()
     ctx := context.Background()
     
-    // 1. Obtener enlaces del episodio
-    links, _ := service.Links(ctx, "one-piece-tv", 1150)
+    // 1. Obtener información del anime
+    info, _ := service.AnimeInfo(ctx, "one-piece-tv")
+    fmt.Printf("📺 %s\n", info.Title)
+    fmt.Printf("📊 Total episodios: %d\n\n", len(info.Episodes))
     
-    // 2. Buscar servidor StreamTape
+    // 2. Obtener enlaces del último episodio
+    lastEp := info.Episodes[len(info.Episodes)-1]
+    links, _ := service.Links(ctx, "one-piece-tv", uint(lastEp))
+    fmt.Printf("🔗 Enlaces disponibles para episodio %d:\n\n", lastEp)
+    
+    // 3. Buscar StreamWish y extraer URL directa
     for _, link := range links.Link {
-        if link.Server == "StreamTape" {
-            fmt.Printf("Encontrado: %s\n", link.URL)
+        if link.Server == "StreamWish" {
+            fmt.Printf("🎯 Servidor: %s\n", link.Server)
+            fmt.Printf("📍 URL embebida: %s\n", link.URL)
             
-            // 3. Extraer URL directa
-            videoURL, err := extract.ExtractUrl(ctx, link.URL)
+            // Extraer URL directa
+            fmt.Println("⏳ Extrayendo URL directa...")
+            videoURL, err := extract.ExtractURL("streamwish", ctx, link.URL)
             if err != nil {
-                fmt.Println("Error:", err)
+                fmt.Printf("❌ Error: %v\n", err)
                 continue
             }
             
-            fmt.Println("URL del video:", videoURL)
+            fmt.Printf("✅ URL directa: %s\n", videoURL)
             break
         }
     }
@@ -335,9 +371,9 @@ func main() {
 
 ---
 
-### RecentAnime
+### 📺 RecentAnime
 
-Últimos animes agregados al sitio.
+Obtén los últimos animes agregados al sitio.
 
 ```go
 RecentAnime(ctx context.Context) ([]AnimeStruct, error)
@@ -348,16 +384,17 @@ RecentAnime(ctx context.Context) ([]AnimeStruct, error)
 ```go
 recientes, _ := service.RecentAnime(ctx)
 
-for _, anime := range recientes[:5] {
-    fmt.Println("-", anime.Title)
+fmt.Println("🆕 Últimos animes agregados:\n")
+for i, anime := range recientes[:5] {
+    fmt.Printf("%d. %s (%s)\n", i+1, anime.Title, anime.Type)
 }
 ```
 
 ---
 
-### RecentEpisode
+### 🆕 RecentEpisode
 
-Últimos episodios publicados.
+Obtén los últimos episodios publicados.
 
 ```go
 RecentEpisode(ctx context.Context) ([]EpisodeListResponse, error)
@@ -368,53 +405,9 @@ RecentEpisode(ctx context.Context) ([]EpisodeListResponse, error)
 ```go
 episodios, _ := service.RecentEpisode(ctx)
 
-for _, ep := range episodios[:5] {
-    fmt.Printf("%s - Ep. %d\n", ep.Title, ep.Episode)
-}
-```
-
----
-
-## 💡 Casos de Uso
-
-### Buscar y explorar animes
-
-```go
-// Buscar por nombre
-resultados, _ := service.SearchAnime(ctx, "Attack on Titan", 1)
-
-// Ver detalles
-info, _ := service.AnimeInfo(ctx, resultados.Animes[0].ID)
-
-// Explorar relacionados
-for _, rel := range info.AnimeRelated {
-    fmt.Printf("- %s (%s)\n", rel.Title, rel.Category)
-}
-```
-
-### Obtener enlaces de todos los episodios
-
-```go
-info, _ := service.AnimeInfo(ctx, "shingeki-no-kyojin")
-
-for _, ep := range info.Episodes {
-    links, _ := service.Links(ctx, "shingeki-no-kyojin", uint(ep))
-    fmt.Printf("Ep.%d tiene %d servicios disponibles:\n", ep, len(links.Link))
-    
-    // Mostrar cada servicio
-    for _, link := range links.Link {
-        fmt.Printf("  - %s: %s\n", link.Server, link.URL)
-    }
-}
-```
-
-### Monitorear nuevos episodios
-
-```go
-episodios, _ := service.RecentEpisode(ctx)
-
-for _, ep := range episodios {
-    fmt.Printf("[NUEVO] %s - Cap. %s\n", ep.Title, ep.Chapter)
+fmt.Println("📢 Últimos episodios publicados:\n")
+for i, ep := range episodios[:10] {
+    fmt.Printf("%d. %s - Ep. %d\n", i+1, ep.Title, ep.Episode)
 }
 ```
 
@@ -422,88 +415,89 @@ for _, ep := range episodios {
 
 ## 🔧 Configuración
 
-### Opción 1: Variables de Entorno (.env)
-
-```bash
-# .env
-CACHE_ENABLED=true
-CACHE_HOST=localhost
-CACHE_PORT=6379
-CACHE_DB=0
-CACHE_TTL=60    # minutos
-```
-
-```go
-// Carga automática
-service := apianime.NewAnimeFlv()
-```
-
-### Opción 2: Configuración Programática (Recomendado)
+### Opción 1: Configuración Programática (Recomendado)
 
 ```go
 import "github.com/dst3v3n/api-anime/config"
 
-// Builder pattern
 cfg := config.NewConfigWithDefaults().
-    WithEnableCache(true).              // Activar caché
-    WithCacheHost("redis.prod.com").    // Host
-    WithCachePort(6380).                // Puerto
-    WithCachePassword("secret").        // Contraseña
-    WithCacheTTL(120)                   // 2 horas (en minutos)
+    WithEnableCache(true).                      // Activar
+    WithCacheHost("redis.prod.com").            // Host
+    WithCachePort(6380).                        // Puerto
+    WithCachePassword("your-password").         // Contraseña (opcional)
+    WithCacheDB(0).                             // Base de datos (0-15)
+    WithCacheTTL(120)                           // TTL en minutos
 
 config.InitConfig(cfg)
 service := apianime.NewAnimeFlv()
 ```
 
-### Opción 3: Desde archivo .env personalizado
+### Opción 2: Variables de Entorno (.env)
+
+```bash
+CACHE_ENABLED=true
+CACHE_HOST=localhost
+CACHE_PORT=6379
+CACHE_DB=0
+CACHE_PASSWORD=
+CACHE_TTL=60
+```
 
 ```go
-cfg, err := config.NewConfigFromEnvPath("/custom/.env")
+service := apianime.NewAnimeFlv()  // Carga automáticamente .env
+```
+
+### Opción 3: Archivo .env Personalizado
+
+```go
+cfg, err := config.NewConfigFromEnvPath("/ruta/custom/.env")
 if err != nil {
     panic(err)
 }
 config.InitConfig(cfg)
 ```
 
-### Configuración Detallada
+### Opciones de Configuración
 
-| Método | Tipo | Default | Descripción |
-|--------|------|---------|-------------|
-| `WithEnableCache(bool)` | bool | false | Activar/desactivar caché |
-| `WithCacheHost(string)` | string | localhost | Host Valkey/Redis |
-| `WithCachePort(int)` | int | 6379 | Puerto (1-65535) |
-| `WithCachePassword(string)` | string | "" | Contraseña (opcional) |
-| `WithCacheDB(int)` | int | 0 | Base datos (0-15) |
-| `WithCacheTTL(int)` | int | 60 | TTL en **minutos** |
+| Método | Tipo | Default | Rango | Descripción |
+|--------|------|---------|-------|-------------|
+| `WithEnableCache(bool)` | bool | `false` | `true/false` | Activar/desactivar caché |
+| `WithCacheHost(string)` | string | `localhost` | - | Host de Valkey/Redis |
+| `WithCachePort(int)` | int | `6379` | 1-65535 | Puerto del servidor |
+| `WithCachePassword(string)` | string | `""` | - | Contraseña (si aplica) |
+| `WithCacheDB(int)` | int | `0` | 0-15 | Base de datos Redis |
+| `WithCacheTTL(int)` | int | `60` | 1-1440 | TTL en minutos |
 
-### Ejemplos de Configuración
+### Ejemplos de Configuración por Entorno
 
-**Desarrollo local sin caché:**
+**🔨 Desarrollo sin caché:**
 
 ```go
 cfg := config.NewConfigWithDefaults()
-// No necesitas configurar nada más
+config.InitConfig(cfg)
 ```
 
-**Desarrollo con caché local:**
+**🏠 Desarrollo con caché local:**
 
 ```go
 cfg := config.NewConfigWithDefaults().
     WithEnableCache(true)
+config.InitConfig(cfg)
 ```
 
-**Producción con Redis:**
+**🚀 Producción con Redis remoto:**
 
 ```go
 cfg := config.NewConfigWithDefaults().
     WithEnableCache(true).
-    WithCacheHost("redis-prod.example.com").
+    WithCacheHost(os.Getenv("REDIS_HOST")).
     WithCachePort(6380).
     WithCachePassword(os.Getenv("REDIS_PASSWORD")).
-    WithCacheTTL(30)  // 30 minutos
+    WithCacheTTL(30)  // 30 minutos más corto en producción
+config.InitConfig(cfg)
 ```
 
-**Múltiples entornos:**
+**🌍 Multi-entorno dinámico:**
 
 ```go
 func newService(env string) *apianime.AnimeFlv {
@@ -514,12 +508,15 @@ func newService(env string) *apianime.AnimeFlv {
         cfg = config.NewConfigWithDefaults().
             WithEnableCache(true).
             WithCacheHost("redis.prod.com").
-            WithCacheTTL(60)  // 1 hora
-    case "development":
+            WithCacheTTL(60)
+    case "staging":
+        cfg = config.NewConfigWithDefaults().
+            WithEnableCache(true).
+            WithCacheHost("redis.staging.com").
+            WithCacheTTL(30)
+    default:  // development
         cfg = config.NewConfigWithDefaults().
             WithEnableCache(false)
-    default:
-        cfg = config.NewConfigWithDefaults()
     }
     
     config.InitConfig(cfg)
@@ -531,108 +528,183 @@ func newService(env string) *apianime.AnimeFlv {
 
 ## 💾 Sistema de Caché
 
-### ¿Qué se cachea?
+### ¿Qué Se Cachea?
 
-| Operación | Clave | TTL Default |
-|-----------|-------|-------------|
-| SearchAnime | `search-anime-{nombre}-page-{N}` | 15m |
-| AnimeInfo | `anime-info-{id}` | 15m |
-| Links | `links-{id}-{episodio}` | 15m |
-| RecentAnime | `recent-anime` | 15m |
-| RecentEpisode | `recent-episode` | 15m |
+| Función | Clave de Caché | TTL Default |
+|---------|--------|-------------|
+| `SearchAnime` | `search-anime-{nombre}-page-{N}` | Configurable (default 60min) |
+| `AnimeInfo` | `anime-info-{id}` | Configurable (default 60min) |
+| `Links` | `links-{id}-{episodio}` | Configurable (default 60min) |
+| `RecentAnime` | `recent-anime` | Configurable (default 60min) |
+| `RecentEpisode` | `recent-episode` | Configurable (default 60min) |
 
-### Performance
+### Comparativa de Performance
 
-| Operación | Sin Caché | Con Caché | Mejora |
-|-----------|-----------|-----------|--------|
-| SearchAnime | 2.5s | 0.8ms | **3100x** |
-| AnimeInfo | 1.8s | 0.6ms | **3000x** |
-| Links | 1.5s | 0.5ms | **3000x** |
+| Operación | Sin Caché | Con Caché | **Mejora** |
+|-----------|----------|----------|-----------|
+| SearchAnime | ~2.5s | ~0.8ms | **🔥 3100x** |
+| AnimeInfo | ~1.8s | ~0.6ms | **🔥 3000x** |
+| Links | ~1.5s | ~0.5ms | **🔥 3000x** |
 
-### Activar/Desactivar en Tiempo Real
+### Invalidar Caché Manualmente
 
 ```go
-// Desactivar caché temporalmente
+// Desactivar temporalmente
 cfg := config.NewConfigWithDefaults().WithEnableCache(false)
 config.InitConfig(cfg)
+resultados, _ := service.SearchAnime(ctx, "Naruto", 1)
 
-// Búsqueda sin caché
-service.SearchAnime(ctx, "Naruto", 1)
-
-// Reactivar caché
-cfg.WithEnableCache(true)
+// Reactivar
+cfg = config.NewConfigWithDefaults().WithEnableCache(true)
 config.InitConfig(cfg)
 ```
 
 ---
 
-## ❓ FAQ
+## 💡 Casos de Uso Comunes
 
-**¿Necesito Valkey/Redis obligatoriamente?**  
-No, el caché está desactivado por defecto. Funciona perfectamente sin él.
-
-**¿Cómo activo el caché?**  
+### Buscar y Explorar Animes
 
 ```go
-cfg := config.NewConfigWithDefaults().WithEnableCache(true)
-config.InitConfig(cfg)
+// 1. Buscar
+resultados, _ := service.SearchAnime(ctx, "Attack on Titan", 1)
+
+// 2. Obtener detalles del primero
+info, _ := service.AnimeInfo(ctx, resultados.Animes[0].ID)
+
+// 3. Ver animes relacionados
+fmt.Printf("Relacionados a %s:\n", info.Title)
+for _, rel := range info.AnimeRelated {
+    fmt.Printf("  └─ %s (%s)\n", rel.Title, rel.Category)
+}
 ```
 
-**¿Puedo cambiar el TTL?**  
-Sí, usa `WithCacheTTL(minutos)`:
+### Obtener Enlaces de Todos los Episodios
 
 ```go
-cfg.WithCacheTTL(120)  // 2 horas
+info, _ := service.AnimeInfo(ctx, "shingeki-no-kyojin")
+
+for _, ep := range info.Episodes {
+    links, _ := service.Links(ctx, "shingeki-no-kyojin", uint(ep))
+    fmt.Printf("Ep.%d: %d servidores disponibles\n", ep, len(links.Link))
+    
+    for _, link := range links.Link {
+        fmt.Printf("  • %s\n", link.Server)
+    }
+}
 ```
 
-**¿Funciona con Redis en lugar de Valkey?**  
-Sí, son 100% compatibles. Usa los mismos métodos de configuración.
+### Monitorear Nuevos Episodios
 
-**¿Los enlaces caducan?**  
-Sí, algunos servidores tienen enlaces temporales. Por eso el caché tiene TTL de 15 minutos por defecto.
+```go
+for {
+    episodios, _ := service.RecentEpisode(ctx)
+    
+    for _, ep := range episodios {
+        fmt.Printf("[NEW] %s - Cap. %s\n", ep.Title, ep.Chapter)
+    }
+    
+    time.Sleep(1 * time.Hour)
+}
+```
 
-**¿Puedo usar en producción?**  
-Sí, pero el scraping depende de la estructura del sitio. Monitorea cambios regularmente.
+### Descargar Todos los Episodios de un Anime
+
+```go
+info, _ := service.AnimeInfo(ctx, "one-piece-tv")
+fmt.Printf("Descargando %s (%d episodios)...\n", info.Title, len(info.Episodes))
+
+for _, ep := range info.Episodes {
+    links, _ := service.Links(ctx, "one-piece-tv", uint(ep))
+    
+    for _, link := range links.Link {
+        if link.Server == "Mega" {  // Preferir Mega
+            fmt.Printf("[%d/%d] Episodio %d: %s\n", 
+                ep, len(info.Episodes), ep, link.URL)
+            break
+        }
+    }
+}
+```
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Tests completos
+# Ejecutar todos los tests
 go test ./...
 
-# Con cobertura
+# Con cobertura de código
 go test ./... -cover
 
-# Tests específicos
+# Tests específicos de extractores
 go test ./internal/adapters/scrapers/animeflv -v
+
+# Verbose output
+go test ./... -v -run TestSearchAnime
 ```
 
 ---
 
-## ⚠️ Aviso Legal
+## ❓ FAQ
 
-**Solo para fines educativos**. Respeta los términos de servicio de AnimeFlv.
+**P: ¿Es obligatorio usar Valkey/Redis?**  
+R: No. El caché es opcional. Funciona perfectamente sin él.
 
-**Obligaciones:**
+**P: ¿Cómo activo el caché?**  
+R:
 
-- ✅ Respeta `robots.txt`
-- ✅ Usa para proyectos personales/educativos
-- ✅ Cita la fuente (AnimeFlv)
-- ✅ Implementa rate limiting
+```go
+cfg := config.NewConfigWithDefaults().WithEnableCache(true)
+config.InitConfig(cfg)
+```
 
-**Prohibido:**
+**P: ¿Puedo cambiar el TTL?**  
+R: Sí:
 
-- ❌ Comercialización sin permiso
-- ❌ Ataques DDoS o sobrecarga
-- ❌ Distribución sin atribución
+```go
+cfg.WithCacheTTL(120)  // 2 horas
+```
+
+**P: ¿Funciona con Redis en lugar de Valkey?**  
+R: Sí, 100% compatible. Usa los mismos métodos.
+
+**P: ¿Los enlaces caducan?**  
+R: Algunos servidores tienen URLs temporales (1-24 horas). Por eso el TTL predeterminado es de 60 minutos.
+
+**P: ¿Puedo usar en producción?**  
+R: Sí, pero el scraping depende de la estructura del sitio. Monitorea cambios regularmente.
+
+**P: ¿Necesito Chrome instalado para ExtractURL?**  
+R: Sí, es obligatorio. La librería usa automatización de navegador nativo.
+
+---
+
+## ⚖️ Aviso Legal
+
+**Uso único para fines educativos y personales.** Respeta siempre los términos de servicio de AnimeFlv.
+
+### ✅ Obligaciones
+
+- Respeta `robots.txt` del sitio
+- Usa solo para proyectos personales/educativos
+- Cita la fuente (AnimeFlv)
+- Implementa rate limiting en producción
+
+### ❌ Prohibido
+
+- Comercialización sin permiso explícito
+- Ataques DDoS o sobrecarga del servidor
+- Distribución sin atribución
+- Scraping masivo sin respetar tiempos
 
 ---
 
 ## 📄 Licencia
 
-MIT - Ver [LICENSE](LICENSE) para detalles.
+**MIT** - Libre para usar, modificar y distribuir.  
+Ver archivo [LICENSE](LICENSE) para detalles completos.
 
 ---
 
@@ -644,18 +716,19 @@ MIT - Ver [LICENSE](LICENSE) para detalles.
 
 ## 🤝 Contribuir
 
-¡Contribuciones bienvenidas!
+¡Las contribuciones son bienvenidas!
 
-- 🐛 Bugs: [Issues](../../issues)
-- 💡 Features: [Discussions](../../discussions)
-- 🔧 Código: [Pull Request](../../pulls)
+- 🐛 **Reportar bugs:** [Issues](../../issues)
+- 💡 **Sugerir features:** [Discussions](../../discussions)
+- 🔧 **Enviar código:** [Pull Requests](../../pulls)
 
 ---
 
 ## 📞 Soporte
 
-- **GitHub**: [@dst3v3n](https://github.com/dst3v3n)
-- **Issues**: [GitHub Issues](../../issues)
+- **GitHub:** [@dst3v3n](https://github.com/dst3v3n)
+- **Issues:** [GitHub Issues](../../issues)
+- **Discussions:** [GitHub Discussions](../../discussions)
 
 ---
 

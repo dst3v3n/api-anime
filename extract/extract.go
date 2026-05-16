@@ -10,7 +10,7 @@ import (
 	"github.com/dst3v3n/api-anime/internal/adapters/videoextractor"
 )
 
-// ExtractUrl extrae la URL directa de reproducción de video desde una página embebida.
+// ExtractURL extrae la URL directa de reproducción de video desde una página embebida.
 // Es una función de conveniencia que crea una instancia del extractor de StreamTape
 // y ejecuta la extracción de URL. Útil para casos simples donde no se requiere
 // reutilización del extractor.
@@ -25,6 +25,13 @@ import (
 // Nota: Esta función requiere Chrome/Chromium instalado en el sistema
 //
 //	para la automatización del navegador (Chromedp).
-func ExtractUrl(ctx context.Context, url string) (urlResponse string, err error) {
-	return videoextractor.NewSteamTape().ExtractVideoURL(ctx, url)
+func ExtractURL(service string, ctx context.Context, url string) (urlResponse string, err error) {
+	switch service {
+	case "streamtape":
+		return videoextractor.NewSteamTape().ExtractVideoURL(ctx, url)
+	case "streamwish":
+		return videoextractor.NewStreamWish().ExtractVideoURL(ctx, url)
+	default:
+		return
+	}
 }
