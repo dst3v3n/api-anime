@@ -43,7 +43,7 @@ func NewSteamTape() ports.VideoExtractor {
 // Nota: Este método requiere que Chrome/Chromium esté instalado en el sistema.
 //
 //	Es un método CPU-intensivo y debe usarse con cuidado para no saturar recursos.
-func (t StreamTape) ExtractVideoURL(ctx context.Context, embedURL string) (string, error) {
+func (t StreamTape) ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (string, error) {
 	// Crea un nuevo contexto de navegación con Chromedp
 	// defer cancel() libera recursos del navegador cuando se completa la función
 	ctx, cancel := chromedp.NewContext(ctx)

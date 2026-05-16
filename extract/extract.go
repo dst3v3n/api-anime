@@ -25,12 +25,12 @@ import (
 // Nota: Esta función requiere Chrome/Chromium instalado en el sistema
 //
 //	para la automatización del navegador (Chromedp).
-func ExtractURL(service string, ctx context.Context, url string) (urlResponse string, err error) {
+func ExtractURL(service string, ctx context.Context, url string, resolution string) (urlResponse string, err error) {
 	switch service {
 	case "streamtape":
-		return videoextractor.NewSteamTape().ExtractVideoURL(ctx, url)
+		return videoextractor.NewSteamTape().ExtractVideoURL(ctx, url, resolution)
 	case "streamwish":
-		return videoextractor.NewStreamWish().ExtractVideoURL(ctx, url)
+		return videoextractor.NewStreamWish().ExtractVideoURL(ctx, url, resolution)
 	default:
 		return
 	}

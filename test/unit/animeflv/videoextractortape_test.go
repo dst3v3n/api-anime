@@ -11,18 +11,21 @@ func TestVideoExtractor_ExtractVideoLinksTape(t *testing.T) {
 	testCases := []struct {
 		name        string
 		urlEmbed    string
+		resolution  string
 		description string
 		wantError   bool
 	}{
 		{
 			name:        "extraer enlaces de video exitosamente",
 			urlEmbed:    "https://streamtape.com/e/PWw1erZpe1FG87/",
+			resolution:  "0",
 			description: "debe extraer correctamente los enlaces de video sin errores",
 			wantError:   false,
 		},
 		{
 			name:        "extraer enlaces de video con error",
 			urlEmbed:    "https://www.animeflv.net/embed/invalid",
+			resolution:  "0",
 			description: "debe manejar correctamente el error al extraer enlaces de video de una URL inválida",
 			wantError:   true,
 		},
@@ -32,7 +35,7 @@ func TestVideoExtractor_ExtractVideoLinksTape(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			link, err := extract.ExtractURL("streamtape", ctx, tc.urlEmbed)
+			link, err := extract.ExtractURL("streamtape", ctx, tc.urlEmbed, tc.resolution)
 			if (err != nil) != tc.wantError {
 				t.Errorf("Test %s fallido: %s. Error esperado: %v, Error obtenido: %v", tc.name, tc.description, tc.wantError, err)
 			}

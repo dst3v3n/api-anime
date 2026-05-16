@@ -272,10 +272,10 @@ type LinkSource struct {
 
 ### ⚡ ExtractURL
 
-Extrae URLs directas de reproducción desde páginas embebidas de video.
+Extrae URLs directas de reproducción desde páginas embebidas de video filtrando por resolución en tiempo real.
 
 ```go
-ExtractURL(service string, ctx context.Context, url string) (string, error)
+ExtractURL(service string, ctx context.Context, url string, resolution string) (string, error)
 ```
 
 **Ejemplo:**
@@ -286,15 +286,16 @@ import "github.com/dst3v3n/api-anime/extract"
 // URL embebida de un reproductor
 embedURL := "https://streamwish.to/e/ss619zjv2ufo"
 
-// Extraer URL directa
-videoURL, err := extract.ExtractURL("streamwish", ctx, embedURL)
+// Extraer URL directa especificando la resolución vertical deseada ("480", "720", etc.)
+// También puedes enviar "default" o "" para obtener la primera opción disponible.
+videoURL, err := extract.ExtractURL("streamwish", ctx, embedURL, "480")
 if err != nil {
     log.Fatal(err)
 }
 
-fmt.Println("✅ URL directa del video:")
+fmt.Println("✅ URL directa del video (480p):")
 fmt.Println(videoURL)
-// Output: https://hgplaycdn.com/stream/.../master.m3u8
+// Output: https://hgplaycdn.com/stream/.../index-f1-v1-a1.m3u8
 ```
 
 **Servicios Soportados:**

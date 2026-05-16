@@ -20,5 +20,5 @@ type VideoExtractor interface {
 	// Retorna:
 	//   - videoURL: URL directa del video que puede reproducirse o descargarse
 	//   - err: error si falla la extracción o navegación de la página
-	ExtractVideoURL(ctx context.Context, embedURL string) (videoURL string, err error)
+	ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (videoURL string, err error)
 }
