@@ -18,7 +18,7 @@ func TestVideoExtractor_ExtractVideoLinksWish(t *testing.T) {
 		{
 			name:        "extraer enlaces de video exitosamente",
 			urlEmbed:    "https://streamwish.to/e/ss619zjv2ufo",
-			resolution:  "480",
+			resolution:  "720",
 			description: "debe extraer correctamente los enlaces de video sin errores",
 			wantError:   false,
 		},

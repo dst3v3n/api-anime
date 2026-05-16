@@ -1,6 +1,6 @@
 // Package videoextractor implementa adaptadores concretos para extraer URLs de video
 // desde diferentes plataformas de reprodución embebidas.
-// streamtape.go contiene la implementación específica para StreamTape,
+// streamtape.go contiene la implementación específica para StreamStape,
 // utilizando automatización de navegador (Chromedp) para acceder a contenido
 // protegido por JavaScript y extraer la URL directa del video.
 package videoextractor
@@ -13,17 +13,17 @@ import (
 	"github.com/dst3v3n/api-anime/internal/ports"
 )
 
-// StreamTape es la implementación del puerto VideoExtractor para StreamTape.
+// StreamStape es la implementación del puerto VideoExtractor para StreamStape.
 // Utiliza Chromedp (automatización de Chrome headless) para navegación y extracción.
-type StreamTape struct{}
+type StreamStape struct{}
 
-// NewSteamTape crea una nueva instancia del extractor de videos de StreamTape.
+// NewSteamStape crea una nueva instancia del extractor de videos de StreamTape.
 // Retorna una interfaz VideoExtractor para permitir polimorfismo e inyección de dependencias.
-func NewSteamTape() ports.VideoExtractor {
-	return StreamTape{}
+func NewSteamStape() ports.VideoExtractor {
+	return StreamStape{}
 }
 
-// ExtractVideoURL extrae la URL directa de reproducción desde una página embebida de StreamTape.
+// ExtractVideoURL extrae la URL directa de reproducción desde una página embebida de StreamStape.
 // Proceso:
 //  1. Crea un contexto de navegación con Chromedp (Chrome headless)
 //  2. Navega a la URL embebida proporcionada
@@ -43,7 +43,7 @@ func NewSteamTape() ports.VideoExtractor {
 // Nota: Este método requiere que Chrome/Chromium esté instalado en el sistema.
 //
 //	Es un método CPU-intensivo y debe usarse con cuidado para no saturar recursos.
-func (t StreamTape) ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (string, error) {
+func (t StreamStape) ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (string, error) {
 	// Crea un nuevo contexto de navegación con Chromedp
 	// defer cancel() libera recursos del navegador cuando se completa la función
 	ctx, cancel := chromedp.NewContext(ctx)
@@ -60,7 +60,7 @@ func (t StreamTape) ExtractVideoURL(ctx context.Context, embedURL string, resolu
 	err := chromedp.Run(ctx,
 		chromedp.Navigate(embedURL),
 		chromedp.WaitVisible(`video`, chromedp.ByQuery),
-		chromedp.Sleep(2*time.Second),
+		chromedp.Sleep(20*time.Millisecond),
 
 		chromedp.Evaluate(`document.querySelector('video').src`, &videoSrc),
 	)

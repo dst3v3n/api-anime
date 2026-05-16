@@ -1,7 +1,8 @@
-// Package extract proporciona funciones de conveniencia para extraer URLs de video
-// desde páginas embebidas de reproductores de video.
+// Package extract proporciona una fachada de conveniencia para extraer URLs de video
+// desde páginas embebidas de diferentes plataformas de reproducción.
 // Este paquete actúa como una interfaz simplificada que expone la funcionalidad
-// de extracción de video sin requerir conocimiento de detalles internos de implementación.
+// de extracción de video sin requerir conocimiento de los detalles internos de implementación
+// de cada adaptador.
 package extract
 
 import (
@@ -10,25 +11,27 @@ import (
 	"github.com/dst3v3n/api-anime/internal/adapters/videoextractor"
 )
 
-// ExtractURL extrae la URL directa de reproducción de video desde una página embebida.
-// Es una función de conveniencia que crea una instancia del extractor de StreamTape
-// y ejecuta la extracción de URL. Útil para casos simples donde no se requiere
-// reutilización del extractor.
+// ExtractURL extrae la URL directa de reproducción de video desde una página embebida
+// delegando la tarea al extractor correspondiente según el servicio solicitado.
+//
 // Parámetros:
-//   - ctx: contexto para control de ciclo de vida, timeout y cancelación
-//   - url: URL del reproductor embebido de donde se extraerá el video (ej: streamtape.com/e/xyz/)
+//   - service: El nombre del proveedor de video (ej: "streamstape", "streamwish").
+//   - ctx: Contexto para el control del ciclo de vida, timeouts y cancelación de la solicitud.
+//   - url: URL del reproductor embebido de donde se extraerá el video.
+//   - resolution: Resolución deseada para el video (ej: "720", "1080"), sujeta a disponibilidad del proveedor.
 //
 // Retorna:
-//   - urlResponse: URL directa del archivo de video (tipo string)
-//   - err: error si falla la navegación, extracción o timeout
+//   - urlResponse: URL directa del archivo de video listo para reproducción.
+//   - err: Error si el servicio no está soportado o si falla la navegación, extracción o timeout.
 //
-// Nota: Esta función requiere Chrome/Chromium instalado en el sistema
+// Nota:
 //
-//	para la automatización del navegador (Chromedp).
+//	Dependiendo del servicio, esta función puede requerir que Chrome/Chromium esté
+//	instalado en el sistema para la automatización del navegador mediante Chromedp.
 func ExtractURL(service string, ctx context.Context, url string, resolution string) (urlResponse string, err error) {
 	switch service {
-	case "streamtape":
-		return videoextractor.NewSteamTape().ExtractVideoURL(ctx, url, resolution)
+	case "streamstape":
+		return videoextractor.NewSteamStape().ExtractVideoURL(ctx, url, resolution)
 	case "streamwish":
 		return videoextractor.NewStreamWish().ExtractVideoURL(ctx, url, resolution)
 	default:

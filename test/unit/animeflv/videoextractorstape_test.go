@@ -35,7 +35,7 @@ func TestVideoExtractor_ExtractVideoLinksTape(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			link, err := extract.ExtractURL("streamtape", ctx, tc.urlEmbed, tc.resolution)
+			link, err := extract.ExtractURL("streamstape", ctx, tc.urlEmbed, tc.resolution)
 			if (err != nil) != tc.wantError {
 				t.Errorf("Test %s fallido: %s. Error esperado: %v, Error obtenido: %v", tc.name, tc.description, tc.wantError, err)
 			}
