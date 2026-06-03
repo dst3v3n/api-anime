@@ -60,7 +60,10 @@ import (
 )
 
 func main() {
-    service := apianime.NewAnimeFlv()
+    service, err := apianime.NewAnimeFlv()
+    if err != nil {
+        panic(err)
+    }
     ctx := context.Background()
     
     resultados, err := service.SearchAnime(ctx, "One Piece", 1)
@@ -106,7 +109,10 @@ func main() {
     
     config.InitConfig(cfg)
     
-    service := apianime.NewAnimeFlv()
+    service, err := apianime.NewAnimeFlv()
+    if err != nil {
+        panic(err)
+    }
     ctx := context.Background()
     
     // Primera búsqueda: ~2s (scraping del sitio)
@@ -169,6 +175,29 @@ type AnimeStruct struct {
 
 ---
 
+### 🌐 Search
+
+Obtén todos los animes disponibles sin filtros de búsqueda con soporte para paginación.
+
+```go
+Search(ctx context.Context, page uint) (AnimeResponse, error)
+```
+
+**Ejemplo:**
+
+```go
+resultados, err := service.Search(ctx, 1)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, anime := range resultados.Animes {
+    fmt.Printf("%s\n", anime.Title)
+}
+```
+
+---
+
 ### 📖 AnimeInfo
 
 Obtén toda la información detallada de un anime.
@@ -216,7 +245,6 @@ type AnimeRelated struct {
     ID       string
     Title    string
     Category string // "Precuela", "Secuela", "Spin-off", etc.
-    Image    string
 }
 ```
 
@@ -272,10 +300,10 @@ type LinkSource struct {
 
 ### ⚡ ExtractURL
 
-Extrae URLs directas de reproducción desde páginas embebidas de video filtrando por resolución en tiempo real.
+Extrae URLs directas de reproducción desde páginas embebidas de video. Retorna una lista de URLs con sus respectivas resoluciones detectadas.
 
 ```go
-ExtractURL(service string, ctx context.Context, url string, resolution string) (string, error)
+ExtractURL(service string, ctx context.Context, url string) ([]types.VideoURL, error)
 ```
 
 **Ejemplo:**
@@ -286,26 +314,33 @@ import "github.com/dst3v3n/api-anime/extract"
 // URL embebida de un reproductor
 embedURL := "https://streamwish.to/e/ss619zjv2ufo"
 
-// Extraer URL directa especificando la resolución vertical deseada ("480", "720", etc.)
-// También puedes enviar "default" o "" para obtener la primera opción disponible.
-videoURL, err := extract.ExtractURL("streamwish", ctx, embedURL, "480")
+// Extraer URLs directas
+videos, err := extract.ExtractURL("streamwish", ctx, embedURL)
 if err != nil {
     log.Fatal(err)
 }
 
-fmt.Println("✅ URL directa del video (480p):")
-fmt.Println(videoURL)
-// Output: https://hgplaycdn.com/stream/.../index-f1-v1-a1.m3u8
+for _, video := range videos {
+    fmt.Printf("✅ Resolución: %s - URL: %s\n", video.Resolution, video.URL)
+}
+```
+
+**Respuesta:**
+
+```go
+type VideoURL struct {
+ URL        string `json:"url"`
+ Resolution string `json:"resolution"`
+}
 ```
 
 **Servicios Soportados:**
 
 | Servicio | Estado | Características |
 |----------|--------|-----------------|
-| **StreamTape** | ✅ Disponible | Extracción nativa directa |
-| **StreamWish** | ✅ Disponible | Captura optimizada de master.m3u8 |
-| Mega | ⏳ Próxima versión | En desarrollo |
-| Google Drive | ⏳ Próxima versión | En desarrollo |
+| **streamstape** | ✅ Disponible | Extracción nativa directa |
+| **streamwish** | ✅ Disponible | Captura optimizada de master.m3u8 |
+| mega | ⏳ Próxima versión | En desarrollo |
 
 **Requisitos del Sistema:**
 
@@ -336,7 +371,10 @@ import (
 )
 
 func main() {
-    service := apianime.NewAnimeFlv()
+    service, err := apianime.NewAnimeFlv()
+    if err != nil {
+        panic(err)
+    }
     ctx := context.Background()
     
     // 1. Obtener información del anime
@@ -355,15 +393,17 @@ func main() {
             fmt.Printf("🎯 Servidor: %s\n", link.Server)
             fmt.Printf("📍 URL embebida: %s\n", link.URL)
             
-            // Extraer URL directa
-            fmt.Println("⏳ Extrayendo URL directa...")
-            videoURL, err := extract.ExtractURL("streamwish", ctx, link.URL)
+            // Extraer URLs directas
+            fmt.Println("⏳ Extrayendo URLs directas...")
+            videos, err := extract.ExtractURL("streamwish", ctx, link.URL)
             if err != nil {
                 fmt.Printf("❌ Error: %v\n", err)
                 continue
             }
             
-            fmt.Printf("✅ URL directa: %s\n", videoURL)
+            for _, video := range videos {
+                fmt.Printf("✅ Resolución: %s - URL: %s\n", video.Resolution, video.URL)
+            }
             break
         }
     }
@@ -416,114 +456,57 @@ for i, ep := range episodios[:10] {
 
 ## 🔧 Configuración
 
-### Opción 1: Configuración Programática (Recomendado)
+La librería utiliza **Viper** para la gestión de configuración, permitiendo persistencia automática en un archivo JSON en el directorio de configuración del usuario (`.configApiAnime.json`).
+
+### Opción 1: Configuración Programática
+
+Puedes configurar la librería programáticamente antes de crear el servicio.
 
 ```go
-import "github.com/dst3v3n/api-anime/config"
+import (
+    "github.com/dst3v3n/api-anime/config"
+    "github.com/dst3v3n/api-anime/types"
+)
 
-cfg := config.NewConfigWithDefaults().
-    WithEnableCache(true).                      // Activar
-    WithCacheHost("redis.prod.com").            // Host
-    WithCachePort(6380).                        // Puerto
-    WithCachePassword("your-password").         // Contraseña (opcional)
-    WithCacheDB(0).                             // Base de datos (0-15)
-    WithCacheTTL(120)                           // TTL en minutos
+func main() {
+    // Configurar caché
+    err := config.SetConfig(types.ConfigCache{
+        CacheEnabled:  true,
+        CacheHost:     "redis.prod.com",
+        CachePort:     6380,
+        CachePassword: "your-password",
+        CacheDB:       0,
+        CacheTTL:      120,
+    })
+    
+    if err != nil {
+        panic(err)
+    }
 
-config.InitConfig(cfg)
-service := apianime.NewAnimeFlv()
-```
-
-### Opción 2: Variables de Entorno (.env)
-
-```bash
-CACHE_ENABLED=true
-CACHE_HOST=localhost
-CACHE_PORT=6379
-CACHE_DB=0
-CACHE_PASSWORD=
-CACHE_TTL=60
-```
-
-```go
-service := apianime.NewAnimeFlv()  // Carga automáticamente .env
-```
-
-### Opción 3: Archivo .env Personalizado
-
-```go
-cfg, err := config.NewConfigFromEnvPath("/ruta/custom/.env")
-if err != nil {
-    panic(err)
+    service, err := apianime.NewAnimeFlv()
+    // ...
 }
-config.InitConfig(cfg)
+```
+
+### Opción 2: Configuración por Defecto
+
+Si no se especifica ninguna configuración, la librería se inicializará con valores por defecto y buscará el archivo de configuración en el directorio del sistema.
+
+```go
+service, err := apianime.NewAnimeFlv() // Inicializa con valores por defecto o archivo existente
 ```
 
 ### Opciones de Configuración
 
-| Método | Tipo | Default | Rango | Descripción |
-|--------|------|---------|-------|-------------|
-| `WithEnableCache(bool)` | bool | `false` | `true/false` | Activar/desactivar caché |
-| `WithCacheHost(string)` | string | `localhost` | - | Host de Valkey/Redis |
-| `WithCachePort(int)` | int | `6379` | 1-65535 | Puerto del servidor |
-| `WithCachePassword(string)` | string | `""` | - | Contraseña (si aplica) |
-| `WithCacheDB(int)` | int | `0` | 0-15 | Base de datos Redis |
-| `WithCacheTTL(int)` | int | `60` | 1-1440 | TTL en minutos |
-
-### Ejemplos de Configuración por Entorno
-
-**🔨 Desarrollo sin caché:**
-
-```go
-cfg := config.NewConfigWithDefaults()
-config.InitConfig(cfg)
-```
-
-**🏠 Desarrollo con caché local:**
-
-```go
-cfg := config.NewConfigWithDefaults().
-    WithEnableCache(true)
-config.InitConfig(cfg)
-```
-
-**🚀 Producción con Redis remoto:**
-
-```go
-cfg := config.NewConfigWithDefaults().
-    WithEnableCache(true).
-    WithCacheHost(os.Getenv("REDIS_HOST")).
-    WithCachePort(6380).
-    WithCachePassword(os.Getenv("REDIS_PASSWORD")).
-    WithCacheTTL(30)  // 30 minutos más corto en producción
-config.InitConfig(cfg)
-```
-
-**🌍 Multi-entorno dinámico:**
-
-```go
-func newService(env string) *apianime.AnimeFlv {
-    var cfg *config.Config
-    
-    switch env {
-    case "production":
-        cfg = config.NewConfigWithDefaults().
-            WithEnableCache(true).
-            WithCacheHost("redis.prod.com").
-            WithCacheTTL(60)
-    case "staging":
-        cfg = config.NewConfigWithDefaults().
-            WithEnableCache(true).
-            WithCacheHost("redis.staging.com").
-            WithCacheTTL(30)
-    default:  // development
-        cfg = config.NewConfigWithDefaults().
-            WithEnableCache(false)
-    }
-    
-    config.InitConfig(cfg)
-    return apianime.NewAnimeFlv()
-}
-```
+| Campo | Tipo | Default | Descripción |
+|--------|------|---------|-------------|
+| `CacheEnabled` | bool | `false` | Activar/desactivar caché |
+| `CacheHost` | string | `localhost` | Host de Valkey/Redis |
+| `CachePort` | int | `6379` | Puerto del servidor |
+| `CacheUsername` | string | `""` | Usuario (si aplica) |
+| `CachePassword` | string | `""` | Contraseña (si aplica) |
+| `CacheDB` | int | `0` | Base de datos Redis |
+| `CacheTTL` | int | `60` | TTL en minutos |
 
 ---
 
@@ -534,6 +517,7 @@ func newService(env string) *apianime.AnimeFlv {
 | Función | Clave de Caché | TTL Default |
 |---------|--------|-------------|
 | `SearchAnime` | `search-anime-{nombre}-page-{N}` | Configurable (default 60min) |
+| `Search` | `search-anime-all` | Configurable (default 60min) |
 | `AnimeInfo` | `anime-info-{id}` | Configurable (default 60min) |
 | `Links` | `links-{id}-{episodio}` | Configurable (default 60min) |
 | `RecentAnime` | `recent-anime` | Configurable (default 60min) |
@@ -551,13 +535,12 @@ func newService(env string) *apianime.AnimeFlv {
 
 ```go
 // Desactivar temporalmente
-cfg := config.NewConfigWithDefaults().WithEnableCache(false)
-config.InitConfig(cfg)
-resultados, _ := service.SearchAnime(ctx, "Naruto", 1)
+config.SetConfig(types.ConfigCache{CacheEnabled: false})
+service, _ := apianime.NewAnimeFlv()
 
 // Reactivar
-cfg = config.NewConfigWithDefaults().WithEnableCache(true)
-config.InitConfig(cfg)
+config.SetConfig(types.ConfigCache{CacheEnabled: true})
+service, _ = apianime.NewAnimeFlv()
 ```
 
 ---
@@ -657,15 +640,14 @@ R: No. El caché es opcional. Funciona perfectamente sin él.
 R:
 
 ```go
-cfg := config.NewConfigWithDefaults().WithEnableCache(true)
-config.InitConfig(cfg)
+config.SetConfig(types.ConfigCache{CacheEnabled: true})
 ```
 
 **P: ¿Puedo cambiar el TTL?**  
 R: Sí:
 
 ```go
-cfg.WithCacheTTL(120)  // 2 horas
+config.SetConfig(types.ConfigCache{CacheTTL: 120}) // 2 horas
 ```
 
 **P: ¿Funciona con Redis en lugar de Valkey?**  

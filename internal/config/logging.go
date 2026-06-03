@@ -7,16 +7,8 @@ import (
 
 // Logging inicializa y retorna un logger de Zerolog configurado según los parámetros de Config.
 // El logger se configura con el entorno y nombre de aplicación especificados.
-func (c *Config) Logging() zerolog.Logger {
-	return logger.InitLogger(c.LogEnv, c.LogAppName)
-}
+func Logging() zerolog.Logger {
+	c := getConfig()
 
-// GetLogger retorna el logger global de la aplicación basado en la configuración.
-// Si hay error al obtener la configuración, retorna un logger con valores por defecto (development, Anime-API).
-func GetLogger() zerolog.Logger {
-	cfg, err := GetConfig()
-	if err != nil {
-		return logger.InitLogger("development", "Anime-API")
-	}
-	return cfg.Logging()
+	return logger.InitLogger(c.LogConfig.LogAppName, c.LogConfig.LogEnv)
 }

@@ -51,7 +51,9 @@ func TestSearchAnimeService(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		_ = config.MustGetConfig().WithCache(true)
+		if err := config.InitConfig(); err != nil {
+			t.Errorf("error inesperado: got %v, want error: %v", err, tc.wantError)
+		}
 		serviceAnimeflv := animeflv.NewAnimeflvService()
 		ctx := context.Background()
 

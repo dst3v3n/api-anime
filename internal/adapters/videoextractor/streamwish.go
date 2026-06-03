@@ -12,6 +12,7 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
+	"github.com/dst3v3n/api-anime/internal/domain/dto"
 	"github.com/dst3v3n/api-anime/internal/ports"
 )
 
@@ -19,14 +20,14 @@ type StreamWish struct{}
 
 func NewStreamWish() ports.VideoExtractor { return StreamWish{} }
 
-func (t StreamWish) ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (string, error) {
+func (t StreamWish) ExtractVideoURL(ctx context.Context, embedURL string) ([]dto.VideoURL, error) {
 	archivos := []string{"master.m3u8", "master.txt"}
 
 	ctx, cancel := chromedp.NewContext(ctx)
 	ctx, timeoutCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer func() { timeoutCancel(); cancel() }()
 
-	var finalVideoURL string
+	var finalVideoURLs []dto.VideoURL
 	var errFiltro error
 
 	encontrado := make(chan struct{})
@@ -50,7 +51,6 @@ func (t StreamWish) ExtractVideoURL(ctx context.Context, embedURL string, resolu
 
 					scanner := bufio.NewScanner(bytes.NewReader(body))
 					var ultimaEtiquetaStream string
-					var urlEncontrada bool
 
 					for scanner.Scan() {
 						line := strings.TrimSpace(scanner.Text())
@@ -61,7 +61,6 @@ func (t StreamWish) ExtractVideoURL(ctx context.Context, embedURL string, resolu
 						}
 
 						if ultimaEtiquetaStream != "" && line != "" && !strings.HasPrefix(line, "#") {
-
 							if idx := strings.Index(ultimaEtiquetaStream, "RESOLUTION="); idx != -1 {
 								subStr := ultimaEtiquetaStream[idx+11:]
 								if comaIdx := strings.Index(subStr, ","); comaIdx != -1 {
@@ -73,29 +72,24 @@ func (t StreamWish) ExtractVideoURL(ctx context.Context, embedURL string, resolu
 								if len(partesResolucion) == 2 {
 									altoResolucion := partesResolucion[1]
 
-									if altoResolucion == resolution || resolution == "default" || resolution == "" {
-
-										baseIdx := strings.LastIndex(masterRequestURL, "/")
-										if baseIdx != -1 {
-											baseURL := masterRequestURL[:baseIdx+1]
-											finalVideoURL = baseURL + line
-										} else {
-											finalVideoURL = line
-										}
-
-										urlEncontrada = true
-										break
+									var videoURL string
+									baseIdx := strings.LastIndex(masterRequestURL, "/")
+									if baseIdx != -1 {
+										baseURL := masterRequestURL[:baseIdx+1]
+										videoURL = baseURL + line
+									} else {
+										videoURL = line
 									}
+
+									finalVideoURLs = append(finalVideoURLs, dto.VideoURL{
+										URL:        videoURL,
+										Resolution: altoResolucion + "p",
+									})
 								}
 							}
-							ultimaEtiquetaStream = ""
 						}
+						ultimaEtiquetaStream = ""
 					}
-
-					if !urlEncontrada {
-						errFiltro = fmt.Errorf("la resolución '%s' no está disponible en este servidor", resolution)
-					}
-
 					close(encontrado)
 				}(e.RequestID, e.Response.URL)
 			}
@@ -103,16 +97,14 @@ func (t StreamWish) ExtractVideoURL(ctx context.Context, embedURL string, resolu
 	})
 
 	if err := chromedp.Run(ctx, chromedp.Navigate(embedURL)); err != nil {
-		return "", fmt.Errorf("error al automatizar la navegación: %w", err)
+		return nil, fmt.Errorf("error al automatizar la navegación: %w", err)
 	}
 
 	select {
 	case <-encontrado:
 		if errFiltro != nil {
-			return "", errFiltro
+			return nil, errFiltro
 		}
-		return finalVideoURL, nil
-	case <-ctx.Done():
-		return "", fmt.Errorf("tiempo límite excedido buscando la resolución '%s'", resolution)
+		return finalVideoURLs, nil
 	}
 }

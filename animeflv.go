@@ -7,6 +7,8 @@ package apianime
 import (
 	"context"
 
+	"github.com/dst3v3n/api-anime/config"
+	log "github.com/dst3v3n/api-anime/internal/config"
 	"github.com/dst3v3n/api-anime/internal/domain/services/animeflv"
 	"github.com/dst3v3n/api-anime/types"
 )
@@ -25,10 +27,15 @@ type AnimeFlv struct {
 // El servicio interno maneja automáticamente la configuración, conexión a Valkey y toda la lógica de negocio.
 // Retorna un pointer a AnimeFlv listo para usar.
 // Nota: Si hay error en la inicialización interna, esto puede causar un panic.
-func NewAnimeFlv() *AnimeFlv {
+func NewAnimeFlv() (*AnimeFlv, error) {
+	logger := log.Logging()
+	if err := config.InitConfig(); err != nil {
+		logger.Debug().Interface("Error", err).Msg("No se pudo inicializar la configuración")
+		return nil, err
+	}
 	return &AnimeFlv{
 		service: animeflv.NewAnimeflvService(),
-	}
+	}, nil
 }
 
 // SearchAnime busca animes por nombre con soporte de paginación.

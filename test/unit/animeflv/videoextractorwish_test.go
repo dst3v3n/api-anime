@@ -18,14 +18,12 @@ func TestVideoExtractor_ExtractVideoLinksWish(t *testing.T) {
 		{
 			name:        "extraer enlaces de video exitosamente",
 			urlEmbed:    "https://streamwish.to/e/ss619zjv2ufo",
-			resolution:  "720",
 			description: "debe extraer correctamente los enlaces de video sin errores",
 			wantError:   false,
 		},
 		{
 			name:        "extraer enlaces de video con error",
 			urlEmbed:    "https://www.animeflv.net/embed/invalid",
-			resolution:  "1",
 			description: "debe manejar correctamente el error al extraer enlaces de video de una URL inválida",
 			wantError:   true,
 		},
@@ -35,12 +33,14 @@ func TestVideoExtractor_ExtractVideoLinksWish(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			link, err := extract.ExtractURL("streamwish", ctx, tc.urlEmbed, tc.resolution)
+			links, err := extract.ExtractURL("streamwish", ctx, tc.urlEmbed)
 			if (err != nil) != tc.wantError {
 				t.Errorf("Test %s fallido: %s. Error esperado: %v, Error obtenido: %v", tc.name, tc.description, tc.wantError, err)
 			}
 			if !tc.wantError {
-				t.Logf("Enlace de video extraído: %s", link)
+				for _, link := range links {
+					t.Logf("Enlace de video extraído: %s (%s)", link.URL, link.Resolution)
+				}
 			}
 		})
 	}

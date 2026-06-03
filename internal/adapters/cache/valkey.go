@@ -19,16 +19,13 @@ import (
 // Encapsula un cliente Valkey para acceso al servidor de caché distribuido.
 type Valkey struct {
 	client valkey.Client
-	config *config.Config
+	config config.CacheConfig
 }
 
 // NewValkeyCache crea una nueva instancia del adaptador de caché Valkey.
 // Toma un cliente Valkey ya inicializado y retorna una instancia que implementa CachePort.
 func NewValkeyCache(client valkey.Client) ports.CachePort {
-	enviroment, err := config.GetConfig()
-	if err != nil {
-		return nil
-	}
+	enviroment := config.GetConfig()
 	return &Valkey{
 		client: client,
 		config: enviroment,

@@ -7,7 +7,11 @@
 // sin afectar la lógica de negocio de la aplicación.
 package ports
 
-import "context"
+import (
+	"context"
+
+	"github.com/dst3v3n/api-anime/internal/domain/dto"
+)
 
 // VideoExtractor define el contrato que debe cumplir cualquier servicio de extracción de videos.
 // Proporciona un método para extraer URLs de reproducción directa desde páginas embebidas
@@ -18,7 +22,7 @@ type VideoExtractor interface {
 	//   - ctx: contexto para control de ciclo de vida y timeout
 	//   - embedURL: URL del reproductor embebido o página que contiene el video (ej: streamtape.com/e/...)
 	// Retorna:
-	//   - videoURL: URL directa del video que puede reproducirse o descargarse
+	//   - videoURLs: lista de URLs directas del video con sus resoluciones
 	//   - err: error si falla la extracción o navegación de la página
-	ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (videoURL string, err error)
+	ExtractVideoURL(ctx context.Context, embedURL string) (videoURLs []dto.VideoURL, err error)
 }

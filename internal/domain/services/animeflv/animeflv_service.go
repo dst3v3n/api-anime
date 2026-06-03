@@ -34,12 +34,8 @@ type AnimeflvService struct {
 func NewAnimeflvService() *AnimeflvService {
 	scraper := animeflv.NewClient()
 
-	logger := config.GetLogger()
-	config, err := config.GetConfig()
-	if err != nil {
-		logger.Error().Err(err).Msg("Error al obtener la configuración de Valkey")
-		return nil
-	}
+	logger := config.Logging()
+	config := config.GetConfig()
 
 	initAddress := fmt.Sprintf("redis://%s:%d/%d", config.CacheHost, config.CachePort, config.CacheDB)
 
@@ -53,17 +49,17 @@ func NewAnimeflvService() *AnimeflvService {
 		search: searchService{
 			scraper:     scraper,
 			cache:       cache.NewValkeyCache(client),
-			enableCache: config.EnableCache,
+			enableCache: config.CacheEnabled,
 		},
 		recent: recentService{
 			scraper:     scraper,
 			cache:       cache.NewValkeyCache(client),
-			enableCache: config.EnableCache,
+			enableCache: config.CacheEnabled,
 		},
 		detail: detailService{
 			scraper:     scraper,
 			cache:       cache.NewValkeyCache(client),
-			enableCache: config.EnableCache,
+			enableCache: config.CacheEnabled,
 		},
 	}
 }

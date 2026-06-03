@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/dst3v3n/api-anime/internal/domain/dto"
 	"github.com/dst3v3n/api-anime/internal/ports"
 )
 
@@ -37,13 +38,13 @@ func NewSteamStape() ports.VideoExtractor {
 //   - embedURL: URL del reproductor embebido de StreamTape (ej: https://streamtape.com/e/abc123/)
 //
 // Retorna:
-//   - videoSrc: URL directa del archivo de video (string)
+//   - videoURLs: lista de URLs directas del video con sus resoluciones
 //   - err: error si falla la navegación, espera, evaluación JavaScript o timeout
 //
 // Nota: Este método requiere que Chrome/Chromium esté instalado en el sistema.
 //
 //	Es un método CPU-intensivo y debe usarse con cuidado para no saturar recursos.
-func (t StreamStape) ExtractVideoURL(ctx context.Context, embedURL string, resolution string) (string, error) {
+func (t StreamStape) ExtractVideoURL(ctx context.Context, embedURL string) ([]dto.VideoURL, error) {
 	// Crea un nuevo contexto de navegación con Chromedp
 	// defer cancel() libera recursos del navegador cuando se completa la función
 	ctx, cancel := chromedp.NewContext(ctx)
@@ -64,6 +65,14 @@ func (t StreamStape) ExtractVideoURL(ctx context.Context, embedURL string, resol
 
 		chromedp.Evaluate(`document.querySelector('video').src`, &videoSrc),
 	)
+	if err != nil {
+		return nil, err
+	}
 
-	return videoSrc, err
+	return []dto.VideoURL{
+		{
+			URL:        videoSrc,
+			Resolution: "default",
+		},
+	}, nil
 }

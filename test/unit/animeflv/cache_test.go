@@ -58,10 +58,11 @@ func TestCacheSet(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := config.GetConfig()
-			if err != nil {
-				t.Fatalf("error getting config: %v", err)
+			if err := config.InitConfig(); err != nil {
+				t.Errorf("Error en la inicialización de la configuración %v", err)
 			}
+			cfg := config.GetConfig()
+			t.Log(cfg)
 			initAddress := fmt.Sprintf("redis://%s:%d/%d", cfg.CacheHost, cfg.CachePort, cfg.CacheDB)
 
 			client, err := valkey.NewClient(valkey.MustParseURL(initAddress))
@@ -117,13 +118,14 @@ func TestCacheGet(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := config.GetConfig()
-			if err != nil {
-				t.Fatalf("error getting config: %v", err)
+			if err := config.InitConfig(); err != nil {
+				t.Errorf("Error en la inicialización de la configuración %v", err)
 			}
+			cfg := config.GetConfig()
+			t.Log(cfg)
 
 			initAddress := fmt.Sprintf("redis://%s:%d/%d", cfg.CacheHost, cfg.CachePort, cfg.CacheDB)
-
+			t.Logf("initAdress %s", initAddress)
 			client, err := valkey.NewClient(valkey.MustParseURL(initAddress))
 			if err != nil {
 				t.Fatalf("error initializing Valkey client: %v", err)
