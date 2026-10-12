@@ -6,7 +6,12 @@
 // afectar la lógica de negocio de la aplicación.
 package ports
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrCacheMiss = errors.New("cache: key not found")
 
 // CachePort define el contrato que debe cumplir cualquier implementación de caché.
 // Proporciona operaciones básicas de almacenamiento, recuperación, eliminación y verificación de existencia.

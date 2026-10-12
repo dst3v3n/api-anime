@@ -18,7 +18,7 @@ import (
 // el formato de salida (coloreado en consola para desarrollo, JSON en producción),
 // y añade campos contextuales como versión, nombre de aplicación y ambiente.
 // Retorna una instancia de logger configurada lista para usar en toda la aplicación.
-func InitLogger(env string, appName string) zerolog.Logger {
+func InitLogger(env string, appName string, version string) zerolog.Logger {
 	var output io.Writer
 
 	if env == "production" {
@@ -32,7 +32,7 @@ func InitLogger(env string, appName string) zerolog.Logger {
 	zerolog.TimeFieldFormat = time.RFC3339
 	logger := zerolog.New(output).With().
 		Timestamp().
-		Str("Version", "1.0.0").
+		Str("Version", version).
 		Str("App", appName).
 		Str("Environment", env).
 		Logger()

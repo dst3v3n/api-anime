@@ -22,7 +22,7 @@ func InitConfig() error {
 	once.Do(func() {
 		userConfigDir, err := os.UserConfigDir()
 		if err != nil {
-			initErr = domainErrors.NewNotFoundErr("No Existe Directorio de Configuración", "config")
+			initErr = domainErrors.E("config", "InitConfig", domainErrors.KindConfig, err)
 			return
 		}
 
@@ -42,17 +42,17 @@ func InitConfig() error {
 			var configFileNotFoundErr viper.ConfigFileNotFoundError
 			if errors.As(err, &configFileNotFoundErr) {
 				if err := viper.SafeWriteConfig(); err != nil {
-					initErr = domainErrors.NewNotSetConfig("No se pudo guardar la configuración inicial", "config-viper")
+					initErr = domainErrors.E("config", "InitConfig", domainErrors.KindConfig, err)
 					return
 				}
 			} else {
-				initErr = domainErrors.NewNotSetConfig("Error al leer el archivo de configuración existente", "config-viper")
+				initErr = domainErrors.E("config", "InitConfig", domainErrors.KindConfig, err)
 				return
 			}
 		}
 
 		if err := viper.Unmarshal(&instance); err != nil {
-			initErr = domainErrors.NewNotSetConfig("Error al mapear la configuración a la instancia", "config-viper")
+			initErr = domainErrors.E("config", "InitConfig", domainErrors.KindConfig, err)
 			return
 		}
 	})

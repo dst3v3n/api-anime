@@ -4,7 +4,7 @@
 // realistas para validar comportamientos sin hacer scraping real.
 package mocks
 
-import "github.com/dst3v3n/api-anime/internal/domain/dto"
+import "github.com/dst3v3n/api-anime/v2/internal/domain/dto"
 
 // MockAnimeStruct retorna un anime de ejemplo con datos completos.
 func MockAnimeStruct() dto.AnimeStruct {

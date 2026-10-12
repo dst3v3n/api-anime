@@ -12,8 +12,8 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
-	"github.com/dst3v3n/api-anime/internal/domain/dto"
-	"github.com/dst3v3n/api-anime/internal/ports"
+	"github.com/dst3v3n/api-anime/v2/internal/domain/dto"
+	"github.com/dst3v3n/api-anime/v2/internal/ports"
 )
 
 type StreamWish struct{}

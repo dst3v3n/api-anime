@@ -1,42 +1,49 @@
-# 🎌 Anime API
+# Anime API
 
-**Librería Go de alto rendimiento** para obtener información de animes desde AnimeFlv con caché distribuido opcional
----
+Librería Go para obtener información de animes mediante scraping de TioAnime, con caché distribuido opcional sobre Valkey (tipo JSON nativo).
 
-## 📋 Descripción
-
-**Anime API** es una librería Go que te permite:
-
-- 🔍 Buscar animes por nombre con paginación
-- 📖 Obtener información detallada (sinopsis, géneros, estado, episodios, relacionados)
-- 🎬 Conseguir enlaces de episodios desde servicios externos (Mega, StreamTape, StreamWish, etc.)
-- 🎥 Extraer URLs directas de reproducción en tiempo real
-- 📺 Monitorear animes y episodios recientes
-
-**Incluye caché distribuido opcional** con Valkey/Redis que reduce tiempos de respuesta de **2-3 segundos a <1ms**.
+> **Aviso: AnimeFlv fue eliminado.** Las versiones anteriores de esta librería usaban AnimeFlv como fuente. Ese servicio dejó de estar disponible, por lo que su soporte se retiró por completo. La fuente actual es TioAnime. La arquitectura permite añadir otras fuentes sin cambiar la API pública.
 
 ---
 
-## 🌟 Características Principales
+## Contenido
 
-| Característica | Descripción |
-|---|---|
-| 🔍 **Búsqueda inteligente** | Por nombre con paginación automática |
-| 📖 **Info completa** | Sinopsis, géneros, estado, total de episodios |
-| 🎬 **Enlaces directos** | URLs de múltiples servicios de streaming |
-| 🎥 **Extracción URL** | Automatización de navegador para URLs directas ⚡ |
-| 📺 **Feed de actualizaciones** | Animes y episodios más recientes |
-| 💾 **Caché configurable** | Valkey/Redis, TTL personalizable |
-| 🚀 **Ultra rápido** | <1ms en consultas cacheadas (~3000x más rápido) |
+1. [Descripción](#descripción)
+2. [Instalación](#instalación)
+3. [Puesta en marcha](#puesta-en-marcha)
+4. [Uso](#uso)
+5. [Configuración](#configuración)
+6. [Caché con Valkey y JSON](#caché-con-valkey-y-json)
+7. [Cómo funciona](#cómo-funciona)
+8. [Pruebas](#pruebas)
+9. [Preguntas frecuentes](#preguntas-frecuentes)
+10. [Aviso legal](#aviso-legal)
+11. [Licencia y contribuciones](#licencia-y-contribuciones)
 
 ---
 
-## 📦 Instalación
+## Descripción
 
-### Requisitos Previos
+La librería se inicializa con `apianime.NewTioanime()` y ofrece:
 
-- **Go 1.25.3+**
-- **Valkey/Redis** (opcional, solo si usas caché)
+- Búsqueda de animes con paginación.
+- Información detallada de cada anime.
+- Servidores de reproducción disponibles por episodio.
+- Listados de animes y episodios recientes.
+- Caché opcional en Valkey que reduce una consulta de cientos de milisegundos a aproximadamente un milisegundo.
+
+Si el caché está deshabilitado o falla, la librería sigue funcionando consultando directamente la fuente.
+
+---
+
+## Instalación
+
+### Requisitos
+
+| Componente | Versión | Obligatorio |
+|---|---|---|
+| Go | 1.25.3 o superior | Sí |
+| Valkey con el módulo JSON | 8.x o superior | Solo si activas el caché |
 
 ### Instalar la librería
 
@@ -44,675 +51,541 @@
 go get github.com/dst3v3n/api-anime
 ```
 
+### Instalar Valkey con soporte JSON (solo si usas caché)
+
+El caché guarda las respuestas con el tipo JSON nativo de Valkey, por lo que el servidor necesita el módulo `valkey-json`. Consulta la sección [Caché con Valkey y JSON](#caché-con-valkey-y-json) para las opciones de instalación.
+
 ---
 
-## 🚀 Inicio Rápido
+## Puesta en marcha
 
-### 1️⃣ Sin Caché (Más Simple)
-
-```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "github.com/dst3v3n/api-anime"
-)
-
-func main() {
-    service, err := apianime.NewAnimeFlv()
-    if err != nil {
-        panic(err)
-    }
-    ctx := context.Background()
-    
-    resultados, err := service.SearchAnime(ctx, "One Piece", 1)
-    if err != nil {
-        panic(err)
-    }
-    
-    fmt.Printf("✅ Encontrados %d animes\n", len(resultados.Animes))
-    
-    for _, anime := range resultados.Animes {
-        fmt.Printf("  📺 %s - ⭐ %.1f\n", anime.Title, anime.Punctuation)
-    }
-}
-```
-
-### 2️⃣ Con Caché (Recomendado para Producción)
-
-**Paso 1:** Inicia Valkey/Redis
+1. Instale la librería (ver [Instalación](#instalación)).
+2. Si va a usar caché, inicie un Valkey con el módulo JSON:
 
 ```bash
-docker run -d -p 6379:6379 valkey/valkey:latest
+docker run -d --name valkey -p 6379:6379 valkey/valkey-bundle
 ```
 
-**Paso 2:** Configura tu servicio
+3. Active el caché en el archivo de configuración (`~/.config/.configApiAnime.json`):
+
+```json
+{
+  "cacheconfig": {
+    "enablecache": true,
+    "cachehost": "localhost",
+    "cacheport": 6379,
+    "cachedb": 0,
+    "cachettl": 60
+  }
+}
+```
+
+4. Cree el servicio y realice consultas como se describe en [Uso](#uso).
+5. Verifique que las entradas se guardan con los comandos de la sección [Verificación](#verificación).
+
+---
+
+## Uso
+
+### Inicialización
+
+El punto de entrada es `apianime.NewTioanime()`, que devuelve un `*Tioanime` listo para consultar.
 
 ```go
 package main
 
 import (
-    "context"
-    "fmt"
-    "github.com/dst3v3n/api-anime"
-    "github.com/dst3v3n/api-anime/config"
+ "context"
+ "fmt"
+ "log"
+
+ apianime "github.com/dst3v3n/api-anime"
 )
 
 func main() {
-    // Configurar caché
-    cfg := config.NewConfigWithDefaults().
-        WithEnableCache(true).              // Activar caché
-        WithCacheHost("localhost").         // Host
-        WithCachePort(6379).                // Puerto
-        WithCacheTTL(60)                    // TTL en minutos
-    
-    config.InitConfig(cfg)
-    
-    service, err := apianime.NewAnimeFlv()
-    if err != nil {
-        panic(err)
-    }
-    ctx := context.Background()
-    
-    // Primera búsqueda: ~2s (scraping del sitio)
-    fmt.Println("⏳ Primera búsqueda...")
-    resultados, _ := service.SearchAnime(ctx, "Naruto", 1)
-    fmt.Printf("✅ Encontrados %d animes\n", len(resultados.Animes))
-    
-    // Segunda búsqueda: <1ms (desde caché!)
-    fmt.Println("⚡ Segunda búsqueda (desde caché)...")
-    resultados, _ = service.SearchAnime(ctx, "Naruto", 1)
-    fmt.Printf("✅ Encontrados %d animes (casi instantáneo)\n", len(resultados.Animes))
+ svc, err := apianime.NewTioanime()
+ if err != nil {
+  log.Fatal(err)
+ }
+
+ ctx := context.Background()
+
+ resultado, err := svc.Search(ctx, "naruto", 1)
+ if err != nil {
+  log.Fatal(err)
+ }
+
+ for _, a := range resultado.Animes {
+  fmt.Printf("%s (%s)\n", a.Title, a.ID)
+ }
 }
 ```
 
----
+`NewTioanime()` realiza tres tareas:
 
-## 📚 Referencia Completa de la API
+1. Carga la configuración desde el archivo `.configApiAnime.json` y lo crea con valores por defecto si no existe.
+2. Construye el caché: un adaptador Valkey si `enablecache` es `true`, o uno que no almacena nada si es `false`.
+3. Crea el cliente de TioAnime con su límite de peticiones por segundo.
 
-### 🔎 SearchAnime
+Devuelve un error si la configuración no puede cargarse o si el caché está habilitado y no es posible conectar con Valkey. La inicialización debe hacerse una sola vez; el mismo `*Tioanime` se reutiliza en toda la aplicación.
 
-Busca animes por nombre con soporte para paginación.
+Todos los métodos reciben un `context.Context` como primer argumento, que permite cancelar la consulta o aplicar un tiempo máximo.
+
+### Métodos
+
+| Método | Descripción | Retorno |
+|---|---|---|
+| `Search(ctx, anime, page)` | Busca animes por nombre, con paginación | `types.Anime` |
+| `AnimeInfo(ctx, idAnime)` | Información detallada de un anime | `types.AnimeInfo` |
+| `EpisodeStreamingProvider(ctx, idAnime, episode)` | Servidores de reproducción de un episodio | `types.EpisodeStreamingProvider` |
+| `RecentAnime(ctx)` | Animes agregados recientemente | `types.Anime` |
+| `RecentEpisode(ctx)` | Episodios publicados recientemente | `[]types.RecentEpisode` |
+
+Todos devuelven además un `error`. Los tipos de respuesta se importan desde `github.com/dst3v3n/api-anime/types`.
+
+#### Search
 
 ```go
-SearchAnime(ctx context.Context, anime string, page uint) (AnimeResponse, error)
+Search(ctx context.Context, anime string, page uint) (types.Anime, error)
 ```
 
-**Ejemplo:**
+Busca por nombre. `page` comienza en 1.
 
 ```go
-resultados, err := service.SearchAnime(ctx, "Naruto", 1)
+resultado, err := svc.Search(ctx, "one piece", 1)
 if err != nil {
-    log.Fatal(err)
+ return err
 }
 
-for _, anime := range resultados.Animes {
-    fmt.Printf("%s (⭐ %.1f/10) - %s\n", 
-        anime.Title, 
-        anime.Punctuation,
-        anime.Sinopsis[:50] + "...")
+fmt.Printf("Resultados en la página: %d\n", len(resultado.Animes))
+for _, a := range resultado.Animes {
+ fmt.Println(a.ID, a.Title)
 }
 ```
 
-**Respuesta:**
+El campo `ID` de cada resultado es el identificador que se usa en `AnimeInfo` y `EpisodeStreamingProvider`.
+
+#### AnimeInfo
 
 ```go
-type AnimeResponse struct {
-    Animes     []types.AnimeStruct
-    TotalPages uint
+AnimeInfo(ctx context.Context, idAnime string) (types.AnimeInfo, error)
+```
+
+El identificador se normaliza (minúsculas y sin espacios laterales) antes de consultar.
+
+```go
+info, err := svc.AnimeInfo(ctx, "one-piece-tv")
+if err != nil {
+ return err
+}
+
+fmt.Println(info.Title, info.Status)
+fmt.Println(info.Genres)
+fmt.Printf("Episodios: del %d al %d\n", info.FirstEpisode, info.LastEpisode)
+
+if info.NextEpisode != nil {
+ fmt.Println("Próximo episodio:", *info.NextEpisode)
+}
+if info.AnimeRelated != nil {
+ for _, r := range *info.AnimeRelated {
+  fmt.Printf("%s (%s)\n", r.Title, r.Category)
+ }
+}
+```
+
+#### EpisodeStreamingProvider
+
+```go
+EpisodeStreamingProvider(ctx context.Context, idAnime string, episode uint) (types.EpisodeStreamingProvider, error)
+```
+
+```go
+ep, err := svc.EpisodeStreamingProvider(ctx, "one-piece-tv", 1)
+if err != nil {
+ return err
+}
+
+fmt.Printf("%s, episodio %d\n", ep.Title, ep.Episode)
+for _, p := range ep.Provider {
+ fmt.Printf("%s: %s\n", p.Server, p.URL)
+}
+```
+
+Cada elemento de `Provider` indica el nombre del servidor de video y su URL de reproducción.
+
+#### RecentAnime y RecentEpisode
+
+```go
+RecentAnime(ctx context.Context) (types.Anime, error)
+RecentEpisode(ctx context.Context) ([]types.RecentEpisode, error)
+```
+
+```go
+animes, err := svc.RecentAnime(ctx)
+episodios, err := svc.RecentEpisode(ctx)
+
+for _, e := range episodios {
+ fmt.Printf("%s, episodio %d\n", e.Title, e.Episode)
+}
+```
+
+### Tipos de respuesta
+
+```go
+type Anime struct {
+ Animes     []AnimeStruct
+ TotalPages uint
+ Source     string
 }
 
 type AnimeStruct struct {
-    ID          string        // "naruto-shippuden"
-    Title       string        // "Naruto Shippuden"
-    Sinopsis    string
-    Type        CategoryAnime // Anime, OVA, Pelicula, Especial
-    Punctuation float64       // Calificación 0-10
-    Image       string        // URL de la portada
-}
-```
-
----
-
-### 🌐 Search
-
-Obtén todos los animes disponibles sin filtros de búsqueda con soporte para paginación.
-
-```go
-Search(ctx context.Context, page uint) (AnimeResponse, error)
-```
-
-**Ejemplo:**
-
-```go
-resultados, err := service.Search(ctx, 1)
-if err != nil {
-    log.Fatal(err)
+ ID          string
+ Title       string
+ Image       string
+ Synopsis    *string
+ Type        *string
+ Punctuation *float64
 }
 
-for _, anime := range resultados.Animes {
-    fmt.Printf("%s\n", anime.Title)
-}
-```
-
----
-
-### 📖 AnimeInfo
-
-Obtén toda la información detallada de un anime.
-
-```go
-AnimeInfo(ctx context.Context, idAnime string) (AnimeInfoResponse, error)
-```
-
-**Ejemplo:**
-
-```go
-info, err := service.AnimeInfo(ctx, "one-piece-tv")
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-fmt.Printf("📺 %s\n", info.Title)
-fmt.Printf("🎯 Tipo: %s\n", info.Type)
-fmt.Printf("📊 Estado: %s\n", info.Status)          // "En Emisión" / "Finalizado"
-fmt.Printf("🎭 Géneros: %v\n", info.Genres)
-fmt.Printf("📍 Total episodios: %d\n", len(info.Episodes))
-fmt.Printf("⏰ Próximo episodio: %s\n", info.NextEpisode)
-
-fmt.Println("\n🔗 Animes Relacionados:")
-for _, rel := range info.AnimeRelated {
-    fmt.Printf("  └─ %s (%s)\n", rel.Title, rel.Category)
-}
-fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-```
-
-**Respuesta:**
-
-```go
-type AnimeInfoResponse struct {
-    AnimeStruct                   // Información básica
-    AnimeRelated []AnimeRelated   // Precuelas, secuelas, spin-offs
-    Genres       []string
-    Status       StatusAnime      // "En Emisión" / "Finalizado"
-    NextEpisode  string
-    Episodes     []int            // [1, 2, 3, ..., 1150]
+type AnimeInfo struct {
+ AnimeStruct
+ Genres       []string
+ Status       string
+ FirstEpisode int
+ LastEpisode  int
+ AnimeRelated *[]AnimeRelated
+ NextEpisode  *string
+ Source       string
 }
 
 type AnimeRelated struct {
-    ID       string
-    Title    string
-    Category string // "Precuela", "Secuela", "Spin-off", etc.
+ ID       string
+ Title    string
+ Category string
+}
+
+type EpisodeStreamingProvider struct {
+ ID       string
+ Title    string
+ Episode  uint
+ Provider []Provider
+ Source   string
+}
+
+type Provider struct {
+ Server string
+ URL    string
+}
+
+type RecentEpisode struct {
+ ID      string
+ Title   string
+ Episode uint
+ Image   string
+ Source  string
 }
 ```
+
+Notas sobre los tipos:
+
+- Los campos con puntero (`Synopsis`, `Type`, `Punctuation`, `NextEpisode`, `AnimeRelated`) son opcionales. Compruebe que no sean `nil` antes de usarlos.
+- `Image` contiene la ruta de la portada tal como la publica el sitio de origen. Si es una ruta relativa, debe anteponerse el dominio de la fuente.
+- `Source` identifica el origen de los datos (por ejemplo, `tioanime`).
+- `TotalPages` es `0` en los listados que no paginan, como `RecentAnime`.
+- Los tipos se serializan a JSON con nombres en minúscula y guion bajo (`id`, `title`, `total_pages`, `first_episode`), por lo que pueden usarse directamente en respuestas HTTP.
+
+### Manejo de errores
+
+Todos los métodos devuelven el error de la fuente tal cual. Los casos habituales son:
+
+- Identificador vacío o inexistente en el sitio.
+- Fallo de red o tiempo de espera agotado en el contexto.
+- Cambio en la estructura HTML del sitio, que impide interpretar la página.
+
+Un fallo del caché nunca llega al llamador: se registra una advertencia y la consulta continúa contra la fuente.
 
 ---
 
-### 🔗 Links
+## Configuración
 
-Obtén todos los enlaces de descarga/streaming disponibles para un episodio.
+La configuración se gestiona con Viper y se persiste en un archivo JSON dentro del directorio de configuración del usuario.
 
-```go
-Links(ctx context.Context, idAnime string, episode uint) (LinkResponse, error)
-```
+| Sistema | Ruta |
+|---|---|
+| Linux | `~/.config/.configApiAnime.json` |
+| macOS | `~/Library/Application Support/.configApiAnime.json` |
+| Windows | `%AppData%\.configApiAnime.json` |
 
-**Ejemplo:**
+Si el archivo no existe, la librería lo crea con valores por defecto la primera vez que se inicializa. Tenga en cuenta este efecto secundario si la usa en entornos con sistema de archivos de solo lectura.
 
-```go
-links, err := service.Links(ctx, "one-piece-tv", 1150)
-if err != nil {
-    log.Fatal(err)
-}
+### Archivo de configuración
 
-fmt.Printf("📺 %s - Episodio %d\n", links.Title, links.Episode)
-fmt.Printf("🌐 Servidores disponibles: %d\n\n", len(links.Link))
-
-for i, link := range links.Link {
-    fmt.Printf("%d. %s\n", i+1, link.Server)
-    fmt.Printf("   🔗 %s\n", link.URL)
-    if link.Code != "" {
-        fmt.Printf("   📝 Código: %s\n", link.Code)
-    }
-    fmt.Println()
-}
-```
-
-**Respuesta:**
-
-```go
-type LinkResponse struct {
-    ID      string
-    Title   string
-    Episode uint
-    Link    []types.LinkSource
-}
-
-type LinkSource struct {
-    Server string // "Mega", "StreamTape", "StreamWish", etc.
-    URL    string // URL directa/embebida
-    Code   string // Código de inserción (si aplica)
+```json
+{
+  "appname": "Api-Anime",
+  "cacheconfig": {
+    "cachedb": 0,
+    "cachehost": "localhost",
+    "cachepassword": "",
+    "cacheport": 6379,
+    "cachettl": 60,
+    "cacheusername": "",
+    "enablecache": false
+  },
+  "logconfig": {
+    "logappname": "Api-Anime",
+    "logenv": "development"
+  }
 }
 ```
+
+### Opciones de caché
+
+| Clave | Tipo | Valor por defecto | Descripción |
+|---|---|---|---|
+| `enablecache` | bool | `false` | Activa o desactiva el caché |
+| `cachehost` | string | `localhost` | Host del servidor Valkey |
+| `cacheport` | int | `6379` | Puerto del servidor |
+| `cachedb` | int | `0` | Base de datos lógica |
+| `cacheusername` | string | vacío | Usuario, si el servidor usa ACL |
+| `cachepassword` | string | vacío | Contraseña, si aplica |
+| `cachettl` | int | `60` | Tiempo de vida de cada entrada, en minutos |
 
 ---
 
-### ⚡ ExtractURL
+## Caché con Valkey y JSON
 
-Extrae URLs directas de reproducción desde páginas embebidas de video. Retorna una lista de URLs con sus respectivas resoluciones detectadas.
+Esta es la parte de la configuración que requiere más atención: **el caché guarda cada respuesta como un documento JSON nativo de Valkey**, usando los comandos `JSON.SET` y `JSON.GET`. Estos comandos no forman parte del Valkey estándar: los aporta el módulo `valkey-json`.
 
-```go
-ExtractURL(service string, ctx context.Context, url string) ([]types.VideoURL, error)
+Si el caché está habilitado y el servidor no tiene el módulo, cada operación de caché falla con errores como:
+
+```
+unknown command 'JSON.SET'
+unknown command 'JSON.GET'
 ```
 
-**Ejemplo:**
+La librería sigue respondiendo (consulta la fuente en cada llamada), pero el caché no tiene ningún efecto y se registra una advertencia por cada operación fallida.
 
-```go
-import "github.com/dst3v3n/api-anime/extract"
+### Cómo se almacena cada entrada
 
-// URL embebida de un reproductor
-embedURL := "https://streamwish.to/e/ss619zjv2ufo"
+1. La respuesta se serializa y se guarda con `JSON.SET <clave> $ <documento>`.
+2. El tiempo de vida se aplica con `EXPIRE <clave> <segundos>`, calculado a partir de `cachettl`.
+3. Ambos comandos se envían dentro de una transacción `MULTI`/`EXEC`, de modo que la clave nunca queda guardada sin expiración.
+4. La lectura usa `JSON.GET <clave>` y deserializa el documento directamente sobre el tipo de respuesta.
 
-// Extraer URLs directas
-videos, err := extract.ExtractURL("streamwish", ctx, embedURL)
-if err != nil {
-    log.Fatal(err)
-}
+### Claves utilizadas
 
-for _, video := range videos {
-    fmt.Printf("✅ Resolución: %s - URL: %s\n", video.Resolution, video.URL)
-}
-```
+| Consulta | Clave |
+|---|---|
+| Búsqueda | `search-{consulta}-{página}` |
+| Información de anime | `anime-info-{id}` |
+| Servidores de un episodio | `episode-streaming-{id}-{episodio}` |
+| Animes recientes | `recent-anime` |
+| Episodios recientes | `recent-episode` |
 
-**Respuesta:**
+### Opción A: Docker con la imagen bundle (recomendada)
 
-```go
-type VideoURL struct {
- URL        string `json:"url"`
- Resolution string `json:"resolution"`
-}
-```
-
-**Servicios Soportados:**
-
-| Servicio | Estado | Características |
-|----------|--------|-----------------|
-| **streamstape** | ✅ Disponible | Extracción nativa directa |
-| **streamwish** | ✅ Disponible | Captura optimizada de master.m3u8 |
-| mega | ⏳ Próxima versión | En desarrollo |
-
-**Requisitos del Sistema:**
-
-Chrome/Chromium debe estar instalado:
+La imagen `valkey-bundle` incluye el módulo JSON ya cargado.
 
 ```bash
-# Linux (Ubuntu/Debian)
-sudo apt-get install chromium-browser
+docker run -d --name valkey \
+  -p 6379:6379 \
+  -v valkey-data:/data \
+  valkey/valkey-bundle
 
-# macOS
-brew install chromium
-
-# Windows
-# Descargar desde: https://www.chromium.org/
+docker exec -it valkey valkey-cli MODULE LIST
 ```
 
-**Ejemplo Completo - Obtener y Extraer URLs:**
+La salida de `MODULE LIST` debe incluir un módulo llamado `json`.
 
-```go
-package main
+### Opción B: Compilar el módulo para una instalación existente
 
-import (
-    "context"
-    "fmt"
-    "log"
-    "github.com/dst3v3n/api-anime"
-    "github.com/dst3v3n/api-anime/extract"
-)
+Si ya tiene Valkey instalado desde el gestor de paquetes de su sistema, puede compilar el módulo y cargarlo.
 
-func main() {
-    service, err := apianime.NewAnimeFlv()
-    if err != nil {
-        panic(err)
-    }
-    ctx := context.Background()
-    
-    // 1. Obtener información del anime
-    info, _ := service.AnimeInfo(ctx, "one-piece-tv")
-    fmt.Printf("📺 %s\n", info.Title)
-    fmt.Printf("📊 Total episodios: %d\n\n", len(info.Episodes))
-    
-    // 2. Obtener enlaces del último episodio
-    lastEp := info.Episodes[len(info.Episodes)-1]
-    links, _ := service.Links(ctx, "one-piece-tv", uint(lastEp))
-    fmt.Printf("🔗 Enlaces disponibles para episodio %d:\n\n", lastEp)
-    
-    // 3. Buscar StreamWish y extraer URL directa
-    for _, link := range links.Link {
-        if link.Server == "StreamWish" {
-            fmt.Printf("🎯 Servidor: %s\n", link.Server)
-            fmt.Printf("📍 URL embebida: %s\n", link.URL)
-            
-            // Extraer URLs directas
-            fmt.Println("⏳ Extrayendo URLs directas...")
-            videos, err := extract.ExtractURL("streamwish", ctx, link.URL)
-            if err != nil {
-                fmt.Printf("❌ Error: %v\n", err)
-                continue
-            }
-            
-            for _, video := range videos {
-                fmt.Printf("✅ Resolución: %s - URL: %s\n", video.Resolution, video.URL)
-            }
-            break
-        }
-    }
-}
-```
-
----
-
-### 📺 RecentAnime
-
-Obtén los últimos animes agregados al sitio.
-
-```go
-RecentAnime(ctx context.Context) ([]AnimeStruct, error)
-```
-
-**Ejemplo:**
-
-```go
-recientes, _ := service.RecentAnime(ctx)
-
-fmt.Println("🆕 Últimos animes agregados:\n")
-for i, anime := range recientes[:5] {
-    fmt.Printf("%d. %s (%s)\n", i+1, anime.Title, anime.Type)
-}
-```
-
----
-
-### 🆕 RecentEpisode
-
-Obtén los últimos episodios publicados.
-
-```go
-RecentEpisode(ctx context.Context) ([]EpisodeListResponse, error)
-```
-
-**Ejemplo:**
-
-```go
-episodios, _ := service.RecentEpisode(ctx)
-
-fmt.Println("📢 Últimos episodios publicados:\n")
-for i, ep := range episodios[:10] {
-    fmt.Printf("%d. %s - Ep. %d\n", i+1, ep.Title, ep.Episode)
-}
-```
-
----
-
-## 🔧 Configuración
-
-La librería utiliza **Viper** para la gestión de configuración, permitiendo persistencia automática en un archivo JSON en el directorio de configuración del usuario (`.configApiAnime.json`).
-
-### Opción 1: Configuración Programática
-
-Puedes configurar la librería programáticamente antes de crear el servicio.
-
-```go
-import (
-    "github.com/dst3v3n/api-anime/config"
-    "github.com/dst3v3n/api-anime/types"
-)
-
-func main() {
-    // Configurar caché
-    err := config.SetConfig(types.ConfigCache{
-        CacheEnabled:  true,
-        CacheHost:     "redis.prod.com",
-        CachePort:     6380,
-        CachePassword: "your-password",
-        CacheDB:       0,
-        CacheTTL:      120,
-    })
-    
-    if err != nil {
-        panic(err)
-    }
-
-    service, err := apianime.NewAnimeFlv()
-    // ...
-}
-```
-
-### Opción 2: Configuración por Defecto
-
-Si no se especifica ninguna configuración, la librería se inicializará con valores por defecto y buscará el archivo de configuración en el directorio del sistema.
-
-```go
-service, err := apianime.NewAnimeFlv() // Inicializa con valores por defecto o archivo existente
-```
-
-### Opciones de Configuración
-
-| Campo | Tipo | Default | Descripción |
-|--------|------|---------|-------------|
-| `CacheEnabled` | bool | `false` | Activar/desactivar caché |
-| `CacheHost` | string | `localhost` | Host de Valkey/Redis |
-| `CachePort` | int | `6379` | Puerto del servidor |
-| `CacheUsername` | string | `""` | Usuario (si aplica) |
-| `CachePassword` | string | `""` | Contraseña (si aplica) |
-| `CacheDB` | int | `0` | Base de datos Redis |
-| `CacheTTL` | int | `60` | TTL en minutos |
-
----
-
-## 💾 Sistema de Caché
-
-### ¿Qué Se Cachea?
-
-| Función | Clave de Caché | TTL Default |
-|---------|--------|-------------|
-| `SearchAnime` | `search-anime-{nombre}-page-{N}` | Configurable (default 60min) |
-| `Search` | `search-anime-all` | Configurable (default 60min) |
-| `AnimeInfo` | `anime-info-{id}` | Configurable (default 60min) |
-| `Links` | `links-{id}-{episodio}` | Configurable (default 60min) |
-| `RecentAnime` | `recent-anime` | Configurable (default 60min) |
-| `RecentEpisode` | `recent-episode` | Configurable (default 60min) |
-
-### Comparativa de Performance
-
-| Operación | Sin Caché | Con Caché | **Mejora** |
-|-----------|----------|----------|-----------|
-| SearchAnime | ~2.5s | ~0.8ms | **🔥 3100x** |
-| AnimeInfo | ~1.8s | ~0.6ms | **🔥 3000x** |
-| Links | ~1.5s | ~0.5ms | **🔥 3000x** |
-
-### Invalidar Caché Manualmente
-
-```go
-// Desactivar temporalmente
-config.SetConfig(types.ConfigCache{CacheEnabled: false})
-service, _ := apianime.NewAnimeFlv()
-
-// Reactivar
-config.SetConfig(types.ConfigCache{CacheEnabled: true})
-service, _ = apianime.NewAnimeFlv()
-```
-
----
-
-## 💡 Casos de Uso Comunes
-
-### Buscar y Explorar Animes
-
-```go
-// 1. Buscar
-resultados, _ := service.SearchAnime(ctx, "Attack on Titan", 1)
-
-// 2. Obtener detalles del primero
-info, _ := service.AnimeInfo(ctx, resultados.Animes[0].ID)
-
-// 3. Ver animes relacionados
-fmt.Printf("Relacionados a %s:\n", info.Title)
-for _, rel := range info.AnimeRelated {
-    fmt.Printf("  └─ %s (%s)\n", rel.Title, rel.Category)
-}
-```
-
-### Obtener Enlaces de Todos los Episodios
-
-```go
-info, _ := service.AnimeInfo(ctx, "shingeki-no-kyojin")
-
-for _, ep := range info.Episodes {
-    links, _ := service.Links(ctx, "shingeki-no-kyojin", uint(ep))
-    fmt.Printf("Ep.%d: %d servidores disponibles\n", ep, len(links.Link))
-    
-    for _, link := range links.Link {
-        fmt.Printf("  • %s\n", link.Server)
-    }
-}
-```
-
-### Monitorear Nuevos Episodios
-
-```go
-for {
-    episodios, _ := service.RecentEpisode(ctx)
-    
-    for _, ep := range episodios {
-        fmt.Printf("[NEW] %s - Cap. %s\n", ep.Title, ep.Chapter)
-    }
-    
-    time.Sleep(1 * time.Hour)
-}
-```
-
-### Descargar Todos los Episodios de un Anime
-
-```go
-info, _ := service.AnimeInfo(ctx, "one-piece-tv")
-fmt.Printf("Descargando %s (%d episodios)...\n", info.Title, len(info.Episodes))
-
-for _, ep := range info.Episodes {
-    links, _ := service.Links(ctx, "one-piece-tv", uint(ep))
-    
-    for _, link := range links.Link {
-        if link.Server == "Mega" {  // Preferir Mega
-            fmt.Printf("[%d/%d] Episodio %d: %s\n", 
-                ep, len(info.Episodes), ep, link.URL)
-            break
-        }
-    }
-}
-```
-
----
-
-## 🧪 Testing
+1. Instale las herramientas de compilación (por ejemplo, en Arch Linux):
 
 ```bash
-# Ejecutar todos los tests
+sudo pacman -S --needed base-devel cmake git
+```
+
+2. Clone y compile:
+
+```bash
+git clone https://github.com/valkey-io/valkey-json.git
+cd valkey-json
+./build.sh
+```
+
+El resultado queda en `build/src/libjson.so`.
+
+3. Copie la biblioteca a una ruta estable:
+
+```bash
+sudo mkdir -p /usr/local/lib/valkey
+sudo cp build/src/libjson.so /usr/local/lib/valkey/
+```
+
+4. Añada la carga del módulo en `/etc/valkey/valkey.conf`:
+
+```
+loadmodule /usr/local/lib/valkey/libjson.so
+```
+
+5. Reinicie el servicio y verifique:
+
+```bash
+sudo systemctl restart valkey
+valkey-cli MODULE LIST
+```
+
+Consideraciones:
+
+- Compile el módulo contra una versión de Valkey compatible con la que ejecuta su servidor. Si el módulo se rechaza al cargar, el registro del servicio (`journalctl -u valkey`) indicará el motivo.
+- Una actualización del paquete de Valkey puede dejar el módulo incompatible. Si el servicio no arranca tras actualizar, comente la línea `loadmodule` para recuperarlo y recompile el módulo.
+- No use `MODULE LOAD` desde `valkey-cli` para una carga permanente. Valkey lo bloquea por defecto (`enable-module-command no`) y la carga no persistiría tras un reinicio.
+
+### Verificación
+
+Con la caché habilitada, ejecute dos veces cualquier consulta y revise:
+
+```bash
+valkey-cli KEYS '*'
+valkey-cli TTL recent-anime
+valkey-cli JSON.GET recent-anime
+```
+
+- `KEYS` debe listar las claves creadas.
+- `TTL` debe devolver un valor positivo cercano a `cachettl * 60`. Un `-1` indica una clave sin expiración.
+- `JSON.GET` debe devolver el documento almacenado.
+
+### Rendimiento orientativo
+
+| Situación | Tiempo típico |
+|---|---|
+| Consulta al sitio (sin caché o primera vez) | Cientos de milisegundos |
+| Lectura desde Valkey | Alrededor de 1 ms |
+
+Las cifras dependen de la red, del sitio de origen y del rate limiting. Los valores anteriores provienen de mediciones en un entorno local.
+
+### Comportamiento ante fallos
+
+El caché es una optimización y no una dependencia:
+
+- Si la lectura falla (servidor caído, documento corrupto), se registra una advertencia y la consulta continúa contra la fuente.
+- Si la escritura falla, se registra una advertencia y el resultado se devuelve igualmente al llamador.
+- Solo un error de la fuente de datos llega al usuario.
+- Un fallo al conectar con Valkey durante la creación del servicio sí se devuelve como error, porque indica un problema de configuración.
+
+### Alternativa sin módulo JSON
+
+Si no desea instalar `valkey-json`, deje `enablecache` en `false`. La librería funciona igual, sin caché.
+
+---
+
+## Cómo funciona
+
+El proyecto sigue una arquitectura hexagonal (puertos y adaptadores):
+
+```
+tioanime.go                  API pública (paquete apianime)
+types/                       Alias públicos de los DTO
+
+internal/
+  domain/
+    dto/                     Estructuras de datos de respuesta
+    services/
+      shared/                Patrón cache-aside y utilidades
+      tioanime/              Servicios: búsqueda, detalle y recientes
+    errors/                  Errores del dominio
+  ports/                     Contratos: CachePort, ScraperPort, ...
+  adapters/
+    scrapers/tioanime/       Cliente y parsers de TioAnime
+    cache/                   Adaptadores de caché (Valkey y no-op)
+    videoextractor/          Extractores de URLs de video
+  config/                    Carga de configuración y logging
+```
+
+### Flujo de una consulta
+
+1. El método público delega en el servicio correspondiente.
+2. El servicio normaliza el identificador (minúsculas y sin espacios) y construye la clave de caché.
+3. El patrón cache-aside consulta el caché. Si hay un acierto, devuelve el resultado.
+4. Si hay un fallo de caché, ejecuta el scraper, que respeta un límite de peticiones por segundo.
+5. El resultado se guarda en el caché con su tiempo de vida y se devuelve.
+
+### Decisiones de diseño
+
+- **Puertos pequeños por capacidad.** Los servicios dependen de interfaces, no de implementaciones concretas. Esto permite probar con mocks y añadir nuevas fuentes sin modificar los servicios.
+- **Caché deshabilitado como implementación no-op.** Cuando `enablecache` es `false`, se inyecta un adaptador que siempre devuelve un fallo de caché y descarta las escrituras. Los servicios no necesitan comprobar nada.
+- **Rate limiting.** El cliente limita las peticiones a la fuente para no sobrecargarla.
+
+---
+
+## Pruebas
+
+```bash
+# Todas las pruebas
 go test ./...
 
-# Con cobertura de código
+# Con cobertura
 go test ./... -cover
 
-# Tests específicos de extractores
-go test ./internal/adapters/scrapers/animeflv -v
-
-# Verbose output
-go test ./... -v -run TestSearchAnime
+# Una prueba concreta
+go test ./... -v -run TestSearch
 ```
 
----
-
-## ❓ FAQ
-
-**P: ¿Es obligatorio usar Valkey/Redis?**  
-R: No. El caché es opcional. Funciona perfectamente sin él.
-
-**P: ¿Cómo activo el caché?**  
-R:
-
-```go
-config.SetConfig(types.ConfigCache{CacheEnabled: true})
-```
-
-**P: ¿Puedo cambiar el TTL?**  
-R: Sí:
-
-```go
-config.SetConfig(types.ConfigCache{CacheTTL: 120}) // 2 horas
-```
-
-**P: ¿Funciona con Redis en lugar de Valkey?**  
-R: Sí, 100% compatible. Usa los mismos métodos.
-
-**P: ¿Los enlaces caducan?**  
-R: Algunos servidores tienen URLs temporales (1-24 horas). Por eso el TTL predeterminado es de 60 minutos.
-
-**P: ¿Puedo usar en producción?**  
-R: Sí, pero el scraping depende de la estructura del sitio. Monitorea cambios regularmente.
-
-**P: ¿Necesito Chrome instalado para ExtractURL?**  
-R: Sí, es obligatorio. La librería usa automatización de navegador nativo.
+Las pruebas de integración que usan caché requieren un Valkey con el módulo JSON en ejecución.
 
 ---
 
-## ⚖️ Aviso Legal
+## Preguntas frecuentes
 
-**Uso único para fines educativos y personales.** Respeta siempre los términos de servicio de AnimeFlv.
+**¿Es obligatorio usar Valkey?**
+No. El caché es opcional y la librería funciona sin él.
 
-### ✅ Obligaciones
+**¿Funciona con Redis?**
+El caché usa comandos `JSON.*`. Redis los ofrece mediante el módulo RedisJSON, pero esta librería está probada únicamente con Valkey y `valkey-json`.
 
-- Respeta `robots.txt` del sitio
-- Usa solo para proyectos personales/educativos
-- Cita la fuente (AnimeFlv)
-- Implementa rate limiting en producción
+**¿Por qué recibo advertencias `unknown command 'JSON.SET'`?**
+El servidor no tiene el módulo JSON cargado. Consulte la sección [Caché con Valkey y JSON](#caché-con-valkey-y-json), o desactive el caché.
 
-### ❌ Prohibido
+**¿Qué ocurre con AnimeFlv?**
+Fue eliminado de la librería porque el servicio dejó de estar disponible.
 
-- Comercialización sin permiso explícito
-- Ataques DDoS o sobrecarga del servidor
-- Distribución sin atribución
-- Scraping masivo sin respetar tiempos
+**¿Los enlaces de reproducción caducan?**
+Algunos servidores emiten URLs temporales. Ajuste `cachettl` a un valor menor si necesita enlaces más frescos.
 
----
+**¿Puedo usarla en producción?**
+El scraping depende de la estructura HTML del sitio de origen, que puede cambiar sin aviso. Monitorice los errores de las consultas y mantenga la librería actualizada.
 
-## 📄 Licencia
-
-**MIT** - Libre para usar, modificar y distribuir.  
-Ver archivo [LICENSE](LICENSE) para detalles completos.
+**¿Por qué se crea un archivo en mi directorio de configuración?**
+La inicialización genera `.configApiAnime.json` con valores por defecto si no existe. Es el mecanismo de persistencia de la configuración.
 
 ---
 
-## 👤 Autor
+## Aviso legal
 
-**Steven** ([@dst3v3n](https://github.com/dst3v3n))
+Este proyecto tiene fines educativos y personales. Respete los términos de servicio y el archivo `robots.txt` del sitio de origen.
 
----
+Se espera que quien use la librería:
 
-## 🤝 Contribuir
+- Aplique límites de peticiones razonables.
+- No sobrecargue el servicio de origen ni realice scraping masivo.
+- Cite la fuente de los datos.
+- No la use con fines comerciales sin autorización de los titulares correspondientes.
 
-¡Las contribuciones son bienvenidas!
-
-- 🐛 **Reportar bugs:** [Issues](../../issues)
-- 💡 **Sugerir features:** [Discussions](../../discussions)
-- 🔧 **Enviar código:** [Pull Requests](../../pulls)
-
----
-
-## 📞 Soporte
-
-- **GitHub:** [@dst3v3n](https://github.com/dst3v3n)
-- **Issues:** [GitHub Issues](../../issues)
-- **Discussions:** [GitHub Discussions](../../discussions)
+Los autores no se hacen responsables del uso que se haga de la librería.
 
 ---
 
-**Made with ❤️ by Steven**
+## Licencia y contribuciones
+
+Distribuido bajo licencia MIT. Consulte el archivo [LICENSE](LICENSE).
+
+Las contribuciones son bienvenidas. Consulte [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un pull request.
+
+- Reportar errores: [Issues](../../issues)
+- Proponer mejoras: [Discussions](../../discussions)
+- Enviar código: [Pull Requests](../../pulls)
+
+Autor: Steven ([@dst3v3n](https://github.com/dst3v3n))

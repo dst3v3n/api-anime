@@ -10,5 +10,5 @@ import (
 func Logging() zerolog.Logger {
 	c := getConfig()
 
-	return logger.InitLogger(c.LogConfig.LogAppName, c.LogConfig.LogEnv)
+	return logger.InitLogger(c.LogConfig.LogEnv, c.LogConfig.LogAppName, "2.0.0")
 }
