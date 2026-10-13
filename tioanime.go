@@ -2,25 +2,29 @@ package apianime
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/dst3v3n/api-anime/config"
+	apperrors "github.com/dst3v3n/api-anime/internal/domain/errors"
 	"github.com/dst3v3n/api-anime/internal/domain/services/tioanime"
 	"github.com/dst3v3n/api-anime/types"
 )
+
+const serviceName = "apianime"
 
 type Tioanime struct {
 	service *tioanime.TioanimeService
 }
 
 func NewTioanime() (*Tioanime, error) {
+	const op = "Tioanime"
+
 	if err := config.InitConfig(); err != nil {
-		return nil, fmt.Errorf("inicializar configuración: %w", err)
+		return nil, apperrors.E(serviceName, op+" inicializar configuración", apperrors.KindConfig, err)
 	}
 
 	svc, err := tioanime.NewTioanimeService()
 	if err != nil {
-		return nil, fmt.Errorf("inicializar servicio tioanime: %w", err)
+		return nil, apperrors.Wrap(serviceName, op+" inicializar servicio tioanime", err)
 	}
 
 	return &Tioanime{service: svc}, nil

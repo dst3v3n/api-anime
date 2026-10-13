@@ -1,17 +1,24 @@
-// Package cache implementa el adaptador de caché usando Valkey.
-// Proporciona una implementación del puerto CachePort utilizando Valkey como motor de caché.
-// Maneja serialización/deserialización de objetos Go a JSON para almacenamiento en Valkey.
 package cache
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"github.com/dst3v3n/api-anime/internal/config"
-	"github.com/dst3v3n/api-anime/internal/ports"
 	"github.com/valkey-io/valkey-go"
+
+	"github.com/dst3v3n/api-anime/internal/config"
+	apperrors "github.com/dst3v3n/api-anime/internal/domain/errors"
+	"github.com/dst3v3n/api-anime/internal/ports"
+)
+
+var _ ports.CachePort = (*Valkey)(nil)
+
+var ErrInvalidCacheValue = errors.New("cache: valor no serializable a JSON")
+
+const (
+	serviceName = "cache"
+	defaultTTL  = 60 * time.Minute
 )
 
 type Valkey struct {
@@ -27,38 +34,55 @@ func NewValkeyCache(client valkey.Client) ports.CachePort {
 	}
 }
 
+func (v *Valkey) ttl() time.Duration {
+	ttl := time.Duration(v.config.CacheTTL) * time.Minute
+	if ttl <= 0 {
+		return defaultTTL
+	}
+	return ttl
+}
+
+// fail reemplaza a fmt.Errorf: mismo contexto (op + clave), pero con Kind.
+func fail(op, key string, err error) error {
+	return apperrors.E(serviceName, op+" "+key, apperrors.Classify(err), err)
+}
+
 func (v *Valkey) Get(ctx context.Context, key string, dest any) error {
+	const op = "Valkey.Get"
+
 	res := v.client.Do(ctx, v.client.B().JsonGet().Key(key).Build())
 
 	if err := res.Error(); err != nil {
 		if valkey.IsValkeyNil(err) {
-			return fmt.Errorf("cache get %q: %w", key, err)
+			return ports.ErrCacheMiss
 		}
-		return fmt.Errorf("cache get %q: %w", key, err)
+		return fail(op, key, err)
 	}
 
 	if err := res.DecodeJSON(dest); err != nil {
-		return fmt.Errorf("cache decode %q: %w", key, err)
+		return apperrors.E(serviceName, op+" decode "+key, apperrors.KindExternal, err)
 	}
+
 	return nil
 }
 
 func (v *Valkey) Set(ctx context.Context, key string, value any) error {
-	if value == nil {
-		return errors.New("cache: cannot store nil value")
-	}
+	const op = "Valkey.Set"
 
-	ttl := time.Duration(config.GetConfig().CacheTTL) * time.Minute
+	data, err := encodeJSON(value)
+	if err != nil {
+		return apperrors.E(serviceName, op+" "+key, apperrors.KindInvalidInput, err)
+	}
 
 	setCmd := v.client.B().JsonSet().
 		Key(key).
 		Path("$").
-		Value(valkey.JSON(value)).
+		Value(valkey.BinaryString(data)).
 		Build()
 
 	expireCmd := v.client.B().Expire().
 		Key(key).
-		Seconds(int64(ttl.Seconds())).
+		Seconds(int64(v.ttl().Seconds())).
 		Build()
 
 	results := v.client.DoMulti(
@@ -69,35 +93,40 @@ func (v *Valkey) Set(ctx context.Context, key string, value any) error {
 		v.client.B().Exec().Build(),
 	)
 
-	// Errores de transporte o de encolado (por ejemplo, el módulo JSON no existe).
 	for _, r := range results {
 		if err := r.Error(); err != nil {
-			return fmt.Errorf("cache set %q: %w", key, err)
+			return fail(op, key, err)
 		}
 	}
 
-	// EXEC devuelve un arreglo con el resultado de cada comando ejecutado.
 	execResults, err := results[len(results)-1].ToArray()
 	if err != nil {
-		return fmt.Errorf("cache set %q: %w", key, err)
+		return fail(op, key, err)
 	}
 	for _, msg := range execResults {
 		if err := msg.Error(); err != nil {
-			return fmt.Errorf("cache set %q: %w", key, err)
+			return fail(op, key, err)
 		}
+	}
+
+	return nil
+}
+
+func (v *Valkey) Delete(ctx context.Context, key string) error {
+	const op = "Valkey.Delete"
+
+	if err := v.client.Do(ctx, v.client.B().Del().Key(key).Build()).Error(); err != nil {
+		return fail(op, key, err)
 	}
 	return nil
 }
 
-// Delete elimina una clave del caché.
-// Retorna error si la operación de eliminación falla.
-func (v *Valkey) Delete(ctx context.Context, key string) error {
-	return v.client.Do(ctx, v.client.B().Del().Key(key).Build()).Error()
-}
-
-// Exists verifica si una clave existe en el caché.
-// Retorna true si la clave existe, false en caso contrario.
-// Retorna error si la operación de verificación falla.
 func (v *Valkey) Exists(ctx context.Context, key string) (bool, error) {
-	return v.client.Do(ctx, v.client.B().Exists().Key(key).Build()).AsBool()
+	const op = "Valkey.Exists"
+
+	n, err := v.client.Do(ctx, v.client.B().Exists().Key(key).Build()).AsInt64()
+	if err != nil {
+		return false, fail(op, key, err)
+	}
+	return n > 0, nil
 }

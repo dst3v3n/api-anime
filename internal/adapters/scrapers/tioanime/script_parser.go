@@ -34,7 +34,6 @@ func scriptEpisodeList(scriptContent string) (int, int, error) {
 			errors.New("la lista de episodios está vacía"))
 	}
 
-	// La lista viene ordenada de mayor a menor
 	lastEpisode := episodes[0]
 	firstEpisode := episodes[len(episodes)-1]
 
@@ -55,7 +54,6 @@ func scriptInfo(scriptContent string) (string, error) {
 		return "", domainErrors.E(service, op, domainErrors.KindExternal, err)
 	}
 
-	// Sin fecha de próximo episodio (anime finalizado): no es un error
 	if len(info) < 4 {
 		return "", nil
 	}

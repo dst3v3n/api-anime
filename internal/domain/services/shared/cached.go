@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/dst3v3n/api-anime/internal/adapters/cache"
 	"github.com/dst3v3n/api-anime/internal/config"
+	apperrors "github.com/dst3v3n/api-anime/internal/domain/errors"
 	"github.com/dst3v3n/api-anime/internal/ports"
 	"github.com/valkey-io/valkey-go"
 )
 
 func NewCache(cfg config.CacheConfig) (ports.CachePort, error) {
+	const op = "NewCache"
+
 	if !cfg.CacheEnabled {
 		return cache.NewNoop(), nil
 	}
@@ -23,7 +25,7 @@ func NewCache(cfg config.CacheConfig) (ports.CachePort, error) {
 		SelectDB:    cfg.CacheDB,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("conectar a valkey: %w", err)
+		return nil, apperrors.E("shared", op+" conectar a valkey", apperrors.Classify(err), err)
 	}
 
 	return cache.NewValkeyCache(client), nil
@@ -43,7 +45,8 @@ func Cached[T any](
 		case err == nil:
 			return hit, nil
 		case !errors.Is(err, ports.ErrCacheMiss):
-			slog.WarnContext(ctx, "cache get falló", "key", key, "err", err)
+			var zero T
+			return zero, err
 		}
 	}
 
@@ -55,7 +58,8 @@ func Cached[T any](
 
 	if enabled {
 		if err := cache.Set(ctx, key, value); err != nil {
-			slog.WarnContext(ctx, "cache set falló", "key", key, "err", err)
+			var zero T
+			return zero, err
 		}
 	}
 

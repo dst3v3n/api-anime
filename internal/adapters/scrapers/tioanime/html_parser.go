@@ -78,6 +78,10 @@ func parserSearch(htmlElement io.Reader) (dto.Anime, error) {
 		pagination = p
 	})
 
+	if len(animes) == 0 {
+		return dto.Anime{}, domainErrors.E(service, op, domainErrors.KindExternal, err)
+	}
+
 	return dto.Anime{TotalPages: pagination, Animes: animes, Source: source}, nil
 }
 

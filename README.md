@@ -2,7 +2,8 @@
 
 Librería Go para obtener información de animes mediante scraping de TioAnime, con caché distribuido opcional sobre Valkey (tipo JSON nativo).
 
-> **Aviso: AnimeFlv fue eliminado.** Las versiones anteriores de esta librería usaban AnimeFlv como fuente. Ese servicio dejó de estar disponible, por lo que su soporte se retiró por completo. La fuente actual es TioAnime. La arquitectura permite añadir otras fuentes sin cambiar la API pública.
+> [!NOTE]
+> AnimeFlv fue eliminado. Las versiones anteriores de esta librería usaban AnimeFlv como fuente, pero ese servicio dejó de estar disponible, por lo que su soporte se retiró por completo. La fuente actual es TioAnime. La arquitectura permite añadir otras fuentes sin cambiar la API pública.
 
 ---
 
@@ -171,7 +172,7 @@ El campo `ID` de cada resultado es el identificador que se usa en `AnimeInfo` y 
 AnimeInfo(ctx context.Context, idAnime string) (types.AnimeInfo, error)
 ```
 
-El identificador se normaliza (minúsculas y sin espacios laterales) antes de consultar.
+El identificador se normaliza (minúsculas y sin espacios laterales) antes de consultar. Un identificador vacío devuelve un error de entrada inválida sin llegar a consultar la fuente.
 
 ```go
 info, err := svc.AnimeInfo(ctx, "one-piece-tv")
@@ -198,6 +199,8 @@ if info.AnimeRelated != nil {
 ```go
 EpisodeStreamingProvider(ctx context.Context, idAnime string, episode uint) (types.EpisodeStreamingProvider, error)
 ```
+
+El identificador no puede estar vacío y `episode` debe ser mayor que cero; de lo contrario se devuelve un error de entrada inválida sin consultar la fuente.
 
 ```go
 ep, err := svc.EpisodeStreamingProvider(ctx, "one-piece-tv", 1)
@@ -296,13 +299,45 @@ Notas sobre los tipos:
 
 ### Manejo de errores
 
-Todos los métodos devuelven el error de la fuente tal cual. Los casos habituales son:
+Todos los métodos devuelven errores normalizados: cada error indica el servicio, la operación y una categoría (`kind`) que clasifica la causa, y conserva el error original para inspeccionarlo con `errors.Is` y `errors.As`. El mensaje tiene el formato `operación: categoría: causa`, por ejemplo:
 
-- Identificador vacío o inexistente en el sitio.
+```
+detailService.animeInfo: invalid_input: anime id is empty
+```
+
+| Categoría | Cuándo ocurre |
+|---|---|
+| `not_found` | El recurso no existe en la fuente |
+| `invalid_input` | Parámetros inválidos: identificador vacío o episodio igual a `0` |
+| `timeout` | El contexto superó su tiempo máximo (`context.DeadlineExceeded`) |
+| `cancel` | El contexto fue cancelado (`context.Canceled`) |
+| `rate_limited` | La fuente rechazó la petición por exceso de solicitudes |
+| `config` | La configuración no pudo cargarse o es inválida |
+| `external` | Fallo de red, de la fuente o del HTML recibido (cualquier error no clasificado) |
+
+```go
+resultado, err := svc.AnimeInfo(ctx, id)
+switch {
+case errors.Is(err, context.DeadlineExceeded):
+ // la consulta tardó más que el tiempo máximo del contexto
+case errors.Is(err, context.Canceled):
+ // el llamador canceló la consulta
+case err != nil:
+ // cualquier otro error: validación, red o cambio en la fuente
+}
+```
+
+Los casos habituales son:
+
+- Identificador vacío o episodio igual a `0`.
+- Identificador inexistente en el sitio.
 - Fallo de red o tiempo de espera agotado en el contexto.
 - Cambio en la estructura HTML del sitio, que impide interpretar la página.
 
 Un fallo del caché nunca llega al llamador: se registra una advertencia y la consulta continúa contra la fuente.
+
+> [!NOTE]
+> Los errores se envuelven una sola vez: si un error ya está normalizado, las capas superiores lo devuelven sin modificar su categoría. Los paquetes de errores son internos (`internal/`), por lo que desde fuera de la librería la categoría se lee en el mensaje y la causa se inspecciona con `errors.Is`/`errors.As` sobre los errores estándar (por ejemplo, los del paquete `context`).
 
 ---
 
@@ -355,7 +390,10 @@ Si el archivo no existe, la librería lo crea con valores por defecto la primera
 
 ## Caché con Valkey y JSON
 
-Esta es la parte de la configuración que requiere más atención: **el caché guarda cada respuesta como un documento JSON nativo de Valkey**, usando los comandos `JSON.SET` y `JSON.GET`. Estos comandos no forman parte del Valkey estándar: los aporta el módulo `valkey-json`.
+El caché guarda cada respuesta como un documento JSON nativo de Valkey, usando los comandos `JSON.SET` y `JSON.GET`.
+
+> [!IMPORTANT]
+> Estos comandos no forman parte del Valkey estándar: los aporta el módulo `valkey-json`. Si el servidor no lo tiene cargado, el caché no funciona. Instale el módulo antes de activar `enablecache`.
 
 Si el caché está habilitado y el servidor no tiene el módulo, cada operación de caché falla con errores como:
 
@@ -471,8 +509,9 @@ Las cifras dependen de la red, del sitio de origen y del rate limiting. Los valo
 
 El caché es una optimización y no una dependencia:
 
+- Una clave inexistente se reporta internamente como un fallo de caché (`ErrCacheMiss`), distinto de un error real de Valkey, y la consulta continúa contra la fuente sin registrar advertencias.
 - Si la lectura falla (servidor caído, documento corrupto), se registra una advertencia y la consulta continúa contra la fuente.
-- Si la escritura falla, se registra una advertencia y el resultado se devuelve igualmente al llamador.
+- Si la escritura falla (incluido un valor que no puede serializarse a JSON), se registra una advertencia y el resultado se devuelve igualmente al llamador.
 - Solo un error de la fuente de datos llega al usuario.
 - Un fallo al conectar con Valkey durante la creación del servicio sí se devuelve como error, porque indica un problema de configuración.
 
@@ -496,13 +535,18 @@ internal/
     services/
       shared/                Patrón cache-aside y utilidades
       tioanime/              Servicios: búsqueda, detalle y recientes
-    errors/                  Errores del dominio
+    errors/                  Errores normalizados (Kind), sentinelas y Wrap
   ports/                     Contratos: CachePort, ScraperPort, ...
   adapters/
     scrapers/tioanime/       Cliente y parsers de TioAnime
     cache/                   Adaptadores de caché (Valkey y no-op)
     videoextractor/          Extractores de URLs de video
   config/                    Carga de configuración y logging
+  mocks/                     Mocks de los puertos para las pruebas
+
+test/
+  unit/                      Pruebas unitarias (caché, extractores, parsers)
+  integration/tioanime/      Pruebas de integración de servicio y API pública
 ```
 
 ### Flujo de una consulta
@@ -512,11 +556,14 @@ internal/
 3. El patrón cache-aside consulta el caché. Si hay un acierto, devuelve el resultado.
 4. Si hay un fallo de caché, ejecuta el scraper, que respeta un límite de peticiones por segundo.
 5. El resultado se guarda en el caché con su tiempo de vida y se devuelve.
+6. Cualquier error se normaliza con su servicio, operación y categoría antes de llegar al llamador.
 
 ### Decisiones de diseño
 
 - **Puertos pequeños por capacidad.** Los servicios dependen de interfaces, no de implementaciones concretas. Esto permite probar con mocks y añadir nuevas fuentes sin modificar los servicios.
 - **Caché deshabilitado como implementación no-op.** Cuando `enablecache` es `false`, se inyecta un adaptador que siempre devuelve un fallo de caché y descarta las escrituras. Los servicios no necesitan comprobar nada.
+- **Errores normalizados.** Un tipo de error propio (`Error`) con servicio, operación y categoría (`Kind`) reemplaza a los `fmt.Errorf` dispersos. `Wrap` clasifica el error original (contexto cancelado, tiempo agotado, fallo externo) y evita envolverlo dos veces, y los errores sentinela (`ErrEmptyAnimeID`, `ErrInvalidEpisode`) describen las validaciones de entrada.
+- **Fallo de caché diferenciado.** El puerto de caché expone `ErrCacheMiss` para distinguir una clave inexistente de un error real de Valkey.
 - **Rate limiting.** El cliente limita las peticiones a la fuente para no sobrecargarla.
 
 ---
@@ -527,14 +574,28 @@ internal/
 # Todas las pruebas
 go test ./...
 
+# Solo pruebas unitarias
+go test ./test/unit/...
+
+# Solo pruebas de integración
+go test ./test/integration/...
+
 # Con cobertura
 go test ./... -cover
 
 # Una prueba concreta
-go test ./... -v -run TestSearch
+go test ./... -v -run TestServiceSearch
 ```
 
-Las pruebas de integración que usan caché requieren un Valkey con el módulo JSON en ejecución.
+| Tipo | Ubicación | Qué cubre |
+|---|---|---|
+| Unitarias | `test/unit/` | Caché (`Set`/`Get`), extractores de video StreamStape y StreamWish, y parsers de búsqueda, detalle y servidores de reproducción |
+| Integración | `test/integration/tioanime/` | Servicios y API pública (`Search`, `AnimeInfo`, `EpisodeStreamingProvider`, recientes y cancelación de contexto) |
+
+Los mocks de los puertos están en `internal/mocks/mocks_tioanime.go`.
+
+> [!NOTE]
+> Las pruebas de integración consultan el sitio real de TioAnime, por lo que requieren conexión a internet y pueden fallar si la estructura HTML cambia. Las que usan caché además necesitan un Valkey con el módulo JSON en ejecución.
 
 ---
 

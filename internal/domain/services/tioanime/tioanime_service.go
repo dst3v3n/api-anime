@@ -61,5 +61,5 @@ func (a *TioanimeService) AnimeInfo(ctx context.Context, idAnime string) (dto.An
 }
 
 func (a *TioanimeService) EpisodeStreamingProvider(ctx context.Context, idAnime string, episode uint) (dto.EpisodeStreamingProvider, error) {
-	return a.detail.episodeStreamingProvdider(ctx, idAnime, episode)
+	return a.detail.episodeStreamingProvider(ctx, idAnime, episode)
 }
